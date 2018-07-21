@@ -1,0 +1,22 @@
+{
+    "perl" : "6.c",
+        "name" : "ManulC",
+        "auth" : "github:vrurg",
+        "api" : "0",
+        "version" : "0.0.1",
+        "description" : "No idea yet.",
+        "authors" : [ "Vadim Belman" ],
+        "license" : "Artistic-2.0",
+        "provides" : {
+            "ManulC::Parser::MD" : "lib/ManulC/Parser/MD.pm6",
+            "ManulC::Parser::HTML" : "lib/ManulC/Parser/HTML.pm6",
+            "ManulC::Translator::MD2HTML" : "lib/ManulC/Translator/MD2HTML.pm6"
+        },
+        "depends" : [ ],
+        "build-depends" : [ ],
+        "test-depends" : [ ],
+        "resources" : [ ],
+        "tags": [
+            "ManulC", "Markdown" 
+        ]
+}
