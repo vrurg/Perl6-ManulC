@@ -1,5 +1,5 @@
-no precompilation;
-use Grammar::Tracer;
+#no precompilation;
+#use Grammar::Tracer;
 
 module ManulC::Parser::MD {
     use ManulC::Parser::HTML;
@@ -7,10 +7,9 @@ module ManulC::Parser::MD {
     grammar Markdown is export {
         also does HTML-Tag;
 
-        my $indent-width = 4;
-
         rule TOP {
-            :my Int $*md-line = 1;
+            #:my Int $*md-line = 1;
+            :my Int $*indent-width = 4;
             <md-doc>
         }
 
@@ -55,7 +54,12 @@ module ManulC::Parser::MD {
         }
 
         token md-paragraph {
-            [ <md-line> <md-nl> ]+
+             <md-para-body([rx/<.md-blank-space>/])> <md-nl> 
+            #[ <md-line> <md-nl> ]+
+        }
+
+        token md-para-body ( @paraEnd ) {
+            <md-line>+? % <md-nl> <?before @paraEnd || $>
         }
 
         token md-blockquote {
@@ -76,10 +80,7 @@ module ManulC::Parser::MD {
                 $<md-bq-line-body>=<md-nl>
                 || ' ' $<md-bq-line-body>=[
                     .*? [
-                        <md-nl> <?before
-                                    <.md-eol>
-                                    || ['>' [ ' ' || <.md-eol>]]
-                               >
+                        <md-nl> <?before <.md-eol> || ['>' [ ' ' || <.md-eol>]]>
                     ]
                 ]
             ]
@@ -105,30 +106,56 @@ module ManulC::Parser::MD {
         }
 
         token md-li-item {
-            <md-li-item-start> ' ' <md-li-para-body>
+            <md-li-item-start> \h+? <md-li-paragraph>
             [
-                [ <md-nl> <md-blank-space>? ] <!before <md-li-item-start>>
+                $<md-li-item-spacer>=[ <md-nl> <md-blank-space>? ] <!before <.md-li-item-start>>
                     [
                         <md-sublist>
-                        || <md-li-paragraph>
+                        || \h <md-li-paragraph>
                     ]
             ]*
         }
 
+        token md-li-paragraph {
+            <md-li-indent> <md-para-body([rx/<.md-li-para-end>/])>
+        }
+
+        token md-li-para-end {
+            :my Str $li-starter; # Stub for md-li-first-start token
+            #<.md-eol> [ <.md-blank-space> || \h* <.md-li-first-start($li-starter)> ]
+            <.md-eol> [ <.md-blank-space> || <.md-li-item-start> ]
+        }
+
+        token md-li-item-start {
+            ^^ <md-li-indent> $<md-li-item-starter>=<$*md-li-starter>
+        }
+
+        token md-li-indent {
+            ' ' ** {^$*indent-width}
+        }
+
+        token md-li-delimiter {
+            <md-nl> <md-blank-space>? <?before <.md-li-item-start>>
+        }
+
         token md-sublist {
             :my Str $*md-sublist-starter;
-            [^^ && <?before <md-indent> <md-li-first-start($*md-sublist-starter)>> ]
-            <md-sublist-paragraph>+ % [ <md-nl> <md-blank-space> ]
-
-             {
-                say "Parsing SUBLIST:", $/, "\n=============";
-                #my $m = $/;
-                #my $sublist = $m<md-sublist-para>.join("\n");
-                #self.WHAT.parse( $sublist, actions => self.actions.clone );
-                #say "PARSED SUBLIST:", $/, "\n-----------";
-                #$m.make( $/ ) if $/;
+            [
+                [^^ && <?before <md-indent> <md-li-first-start($*md-sublist-starter)>> ]
+                <md-sublist-paragraph>+ % [ <md-nl> <md-blank-space> ]
+            ]
+            <?{ # Use boolean to fail sublist parsing if sublist is malformed.
+                my $m = $/;
+                my $sublist = [~] $m.caps.map( { 
+                    $_.key eq 'md-sublist-paragraph' ??
+                    [~] $_.value.caps.map( { $_.key ~~ /^ 'md-sublist-line' || 'md-nl' $/ ?? ~$_.value !! "" } )
+                    !!
+                    ~$_.value
+                });
+                self.WHAT.parse( $sublist, rule => "md-list", actions => self.actions.clone );
+                $m.make( $/ ) if $/;
                 so $/;
-             }
+            }>
         }
 
         token md-sublist-paragraph {
@@ -143,41 +170,15 @@ module ManulC::Parser::MD {
             \s* \S \N*
         }
 
-        token md-li-paragraph {
-            <md-li-indent> <md-li-para-body>
-        }
-
-        token md-li-para-body {
-            <md-line>+? % <md-nl> <?before
-                                    $
-                                    || <.md-eol> [
-                                        <md-blank-space>
-                                        || <.md-li-item-start>
-                                    ]
-                                >
-        }
-
-        token md-li-item-start {
-            ^^ <md-li-indent> $<md-li-item-starter>=<$*md-li-starter>
-        }
-
-        token md-li-indent {
-            ' ' ** {^$indent-width}
-        }
-
-        token md-li-delimiter {
-            <md-nl> <md-blank-space>? <?before <md-li-item-start>>
-        }
-
         token md-indent {
-            ' ' ** {$indent-width}
+            ' ' ** {$*indent-width}
         }
 
         token md-eol {
             [ \n || $ ]
         }
         token md-nl {
-            <.md-eol> { ++$*md-line }
+            <.md-eol> # { ++$*md-line }
         }
 
         token ws {
@@ -234,10 +235,22 @@ module ManulC::Parser::MD {
     class MdList is MdContainer is export {
     }
 
-    class MdItem is MdContainer is export {
+    class MdLiItem is MdContainer is export {
+        has Str $.starter;
+
+        method info-str {
+            return "starter({ $.starter })";
+        }
     }
 
-    class MdSublist is MdContainer is export {
+    class MdLiParagraph is MdParagraph is export {
+        has Str $.indent;
+    }
+
+    class MdLiItemSpacer is MdPlainStr is export {
+    }
+
+    class MdSublist is MdList is export {
     }
 
     class MdLine is MdContainer is export {
@@ -249,6 +262,7 @@ module ManulC::Parser::MD {
 # Grammar actions
     class MDGActions is export {
         has $.nodePrefix = 'Md';
+        has $.curLine = 1;
 
         has $!containerClass;
         has $!plainDataClass;
@@ -299,21 +313,64 @@ module ManulC::Parser::MD {
             $m.make( $bq );
         }
 
-        #method md-sublist ($m) {
-        #    my $sublist = self.makeNode( "Sublist" );
-        #    $sublist.push( $m.ast.ast );
-        #    $m.make( $sublist );
-        #}
+        method md-sublist ($m) {
+            # copy items from parsed sublist body.
+            my $sublist = self.makeNode( "Sublist", content => $m.ast.ast.content );
+            #say "SUBLIST AST:", MDDumpAST( $m.ast.ast );
+            #$sublist.push( $m.ast.ast );
+            $m.make( $sublist );
+        }
+
+        method md-list ($m) {
+            my $list = self.makeNode("List");
+            $m<md-li-item>.map: { $list.push( $_.ast ) };
+            $m.make( $list );
+        }
 
         method md-li-item ($m) {
+            my $starter = ~$m<md-li-item-start><md-li-item-starter>;
+            my $li-item = self.makeNode( "LiItem", :$starter );
+
+            for $m.caps -> $mcap {
+                given $mcap.key {
+                    when 'md-li-paragraph' | 'md-sublist' {
+                        $li-item.push($mcap.value.ast);
+                    }
+                    when 'md-li-item-spacer' {
+                        $li-item.push(
+                            self.makeNode( 'LiItemSpacer', value => ~$mcap.value )
+                        )
+                    }
+                }
+            }
+
+            $m.make( $li-item );
         }
 
-        method ws ($m) {
-            $*md-line++ if ~$m ~~ m/\n/;
+        method m2paragraph ($m, Str $type) {
+            my $node = self.makeNode( $type );
+            for $m<md-para-body>.caps -> $mcap {
+                $node.push( $mcap.value.ast // self.makeNode( "PlainData", value => ~$mcap.value ) );   
+            }
+            $node.push( self.makeNode( "PlainData", value => ~$m<md-nl> ) )
+                if $m<md-nl>;
+            $m.make( $node );
         }
+
+        method md-paragraph ($m) {
+            self.m2paragraph($m, "Paragraph");
+        }
+
+        method md-li-paragraph ($m) {
+            self.m2paragraph($m, "LiParagraph" );
+        }
+
+        #method ws ($m) {
+        #    $*md-line++ if ~$m ~~ m/\n/;
+        #}
 
         # Simple nodes where it is enough to use string part of the match
-        multi method addNode(Str $name, $/ ) {
+        multi method addNode(Str $name, $m ) {
             my $node = self.makeNode( $name );
             unless ($!containerClass) {
                 $!containerClass = ::( self.type2class( "Container" ) );
@@ -322,19 +379,19 @@ module ManulC::Parser::MD {
             given ($node) {
                 when $!containerClass {
                     #say "Creating container {$node.type}";
-                    for $/.chunks -> $m {
+                    for $m.chunks -> $m {
                         #say "CONTAINER \{$name\} MATCH: {$m.key}::{$m.value} ", $m.value.perl;
                         #say "!!!! ", $m.key unless $m.value.isa('Match');
                         next unless $m.value.isa('Match');
-                        $node.push( $m.value.made // self.makeNode( "PlainData", value => ~$m.value ) );
+                        $node.push( $m.value.ast // self.makeNode( "PlainData", value => ~$m.value ) );
                     }
                 }
                 when $!plainDataClass {
                     #say "Creating simple { $node.type } node: $node";
-                    $node.value = ~$/;
+                    $node.value = ~$m;
                 }
             }
-            $/.make( $node ) if $node.defined;
+            $m.make( $node ) if $node.defined;
         }
 
         multi method FALLBACK ( $name where /^md/, |c ) {
@@ -366,13 +423,26 @@ module ManulC::Parser::MD {
         multi method translate(MdPlainData $elem) { ... }
     }
 
-    multi MDParse (Str:D $mdText) is export {
-        my $rc = Markdown.new.parse( $mdText, :actions( MDGActions.new ) );
+    multi MDParse ( Str:D $mdText, |parserArgs ) is export {
+        my $rc = Markdown.new.parse( $mdText, :actions( MDGActions.new ), |parserArgs );
         return $rc;
     }
 
-    multi MDParse ( IO::Handle:D $fh ) is export {
-        return MDParse( $fh.slurp );
+    multi MDParse ( IO::Handle:D $fh, |parserArgs ) is export {
+        return MDParse( $fh.slurp, |parserArgs );
     }
 
+    sub MDDumpAST ( MdEntity $elem, Int :$level = 0 ) is export {
+        my $line = '| ' x $level ~ $elem.type ~ ( $elem.^can('info-str') ?? ": " ~ $elem.info-str !! "" );
+        
+        if $elem ~~ MdPlainData {
+            $line ~= ": «{ $elem.^can('to-str') ?? $elem.to-str !! $elem.value }»";
+        } elsif $elem ~~ MdContainer {
+            $line ~= "\n" ~ $elem.content
+                                .map( { MDDumpAST( $_, level => $level + 1 ) } )
+                                .join( "\n" );
+        } else {
+            $line ~= " !! Unknown type of element: neither PlainData nor Container";
+        }
+    }
 }
