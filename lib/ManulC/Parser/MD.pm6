@@ -1,5 +1,7 @@
-#no precompilation;
-#use Grammar::Tracer;
+#`(
+no precompilation;
+use Grammar::Tracer;
+)
 
 module ManulC::Parser::MD {
     use ManulC::Parser::HTML;
@@ -19,7 +21,9 @@ module ManulC::Parser::MD {
                 <md-blank-space>
                 || [
                     <md-head>
+                    || <md-hrule>
                     || <md-list>
+                    || <md-code-block>
                     || <md-blockquote>
                     || <md-paragraph>
                 ]+ %% <md-blank-space>
@@ -53,13 +57,16 @@ module ManulC::Parser::MD {
             ^^ $<md-hlevel>=[ '#' ** 1..6 ] \h+ <md-line> <md-nl>
         }
 
-        token md-paragraph {
-             <md-para-body([rx/<.md-blank-space>/])> <md-nl> 
-            #[ <md-line> <md-nl> ]+
+        token md-hrule {
+            ^^ \h* $<md-hr-sym>=<[*_-]> $<md-hr-delim>=[ \h* ] {} $<md-hr-sym> ** 2..* % $<md-hr-delim> \h* <md-nl>
         }
 
-        token md-para-body ( @paraEnd ) {
-            <md-line>+? % <md-nl> <?before @paraEnd || $>
+        token md-paragraph {
+             <md-para-body( rx/<.md-eol> [ <.md-blank-space> || $ ]/ )> <md-nl> 
+        }
+
+        token md-para-body ( $paraEnd ) {
+            <md-line>+? % <md-nl> <?before $($paraEnd) || $>
         }
 
         token md-blockquote {
@@ -84,6 +91,24 @@ module ManulC::Parser::MD {
                     ]
                 ]
             ]
+        }
+
+        token md-code-block {
+            :my $md-cb-prefix;
+            <md-cb-first-line($md-cb-prefix)>
+            <md-cb-line($md-cb-prefix)>* 
+        }
+
+        token md-cb-first-line ( $md-cb-prefix is rw ) {
+            $<md-first-pfx>=[ <md-indent>+ ] <md-cb-line-body> { $md-cb-prefix = ~$<md-first-pfx> }
+        }
+
+        token md-cb-line ( Str $md-cb-prefix ) {
+            $($md-cb-prefix) <md-cb-line-body>
+        }
+
+        token md-cb-line-body {
+            \N+ <md-nl>
         }
 
         my $li-bullet-start = q{<[*+-]>};
@@ -111,19 +136,19 @@ module ManulC::Parser::MD {
                 $<md-li-item-spacer>=[ <md-nl> <md-blank-space>? ] <!before <.md-li-item-start>>
                     [
                         <md-sublist>
+                        || <md-code-block>
                         || \h <md-li-paragraph>
                     ]
             ]*
         }
 
         token md-li-paragraph {
-            <md-li-indent> <md-para-body([rx/<.md-li-para-end>/])>
+            <md-li-indent> <md-para-body( rx/<.md-li-para-end>/ )>
         }
 
         token md-li-para-end {
             :my Str $li-starter; # Stub for md-li-first-start token
-            #<.md-eol> [ <.md-blank-space> || \h* <.md-li-first-start($li-starter)> ]
-            <.md-eol> [ <.md-blank-space> || <.md-li-item-start> ]
+            <.md-eol> [ <.md-blank-space> || <.md-li-item-start> || $ ]
         }
 
         token md-li-item-start {
@@ -175,7 +200,7 @@ module ManulC::Parser::MD {
         }
 
         token md-eol {
-            [ \n || $ ]
+            \n || $
         }
         token md-nl {
             <.md-eol> # { ++$*md-line }
@@ -230,6 +255,10 @@ module ManulC::Parser::MD {
     }
 
     class MdBlockquote is MdDoc is export {
+    }
+
+    class MdCodeBlock is MdPlainData is export {
+        has Str $.indent;
     }
 
     class MdList is MdContainer is export {
@@ -313,6 +342,13 @@ module ManulC::Parser::MD {
             $m.make( $bq );
         }
 
+        method md-code-block ($m) {
+            my $indent = ~$m<md-cb-first-line><md-first-pfx>;
+            my $value = ~$m<md-cb-first-line><md-cb-line-body> ~
+                        [~] $m<md-cb-line>.map: { ~ $_<md-cb-line-body> }
+            $m.make( self.makeNode( "CodeBlock", :$indent, :$value ) );
+        }
+
         method md-sublist ($m) {
             # copy items from parsed sublist body.
             my $sublist = self.makeNode( "Sublist", content => $m.ast.ast.content );
@@ -333,7 +369,7 @@ module ManulC::Parser::MD {
 
             for $m.caps -> $mcap {
                 given $mcap.key {
-                    when 'md-li-paragraph' | 'md-sublist' {
+                    when 'md-li-paragraph' | 'md-sublist' | 'md-code-block' {
                         $li-item.push($mcap.value.ast);
                     }
                     when 'md-li-item-spacer' {
