@@ -5,6 +5,42 @@ use Test;
 use ManulC::Parser::MD;
 use ManulC::Translator::MD2HTML;
 
+subtest "Paragraphs/lines", {
+    my ($text, $res);
+
+    $text = qq{
+A paragraph 
+with a & \\& couple 
+of lines&dot;.
+
+Then another one
+
+And a final one.
+With more than <a
+href="123">one</a> line too.};
+
+    $res = MDParse( $text );
+    ok so $res, "simple document";
+    is-deeply
+        $res.ast,
+        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A paragraph \nwith a ", type => "PlainStr"), ManulC::Parser::MD::MdChrSpecial.new(value => "\&", type => "ChrSpecial"), ManulC::Parser::MD::MdPlainStr.new(value => " ", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => "\&", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => " couple \nof lines", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "\&dot;", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => ".", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Then another one", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "And a final one.\nWith more than ", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "<a\nhref=\"123\">", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => "one", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "</a>", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => " line too.", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        "simple document structure";
+}
+
+subtest "Escaped chars", {
+    my ($text, $res);
+
+    my Str @*md-quotable = qw{\ . &};
+
+    $text = q{1\.2\e\\\\f};
+    $res = MDParse( $text, rule => "md-line" );
+    ok so $res, "escaped chars";
+    is-deeply
+        $res.ast,
+        ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "1", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => ".", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => "2\\e", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => "\\", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => "f", type => "PlainStr")], type => "Line"),
+        "escaped chars structure";
+};
+
 subtest "Blank space", {
     plan 6;
     my ($text, $res);
@@ -59,7 +95,8 @@ Third line};
     ok so $res, "multi-line";
     is-deeply
         $res.ast,
-        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData"), ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData"), ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Third line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First line\nSecond line\nThird line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        "multi-line structure";
 
     $text = q{
 First line
@@ -70,7 +107,7 @@ Third line
     ok so $res, "multi-line, nl-surrounded";
     is-deeply
         $res.ast,
-        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData"), ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData"), ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Third line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First line\nSecond line\nThird line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
         "nl-surrounded structure";
 
     $text = q{
@@ -87,13 +124,14 @@ And fourth starts here...
     ok so $res, "multi-paragraph";
     is-deeply
         $res.ast,
-        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData"), ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData"), ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Third line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second paragraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData"), ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "ends here", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "And fourth starts here...", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First line\nSecond line\nThird line", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second paragraph\nends here", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "And fourth starts here...", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
         "multi-paragraph structure";
-
-        #diag MDDumpAST( $res.ast );
-        #diag $res.ast.perl;
+    #diag $res.gist;
+    #diag MDDumpAST( $res.ast );
+    #diag $res.ast.perl;
 };
 
+#`[ Temorarily disable a long-running test
 subtest "Horizontal rules", {
     plan 5186;
     my ( $text, $res );
@@ -138,38 +176,6 @@ subtest "Horizontal rules", {
     $res = MDParse( $text, rule => "md-hrule" );
     nok so $res, "only same number of delimiting spaces allowed";
 }
-
-#`[
-my $mdres = MDParse(q:to/MD/);
-
-# Head 1
-
-Paragraph 1
-
-> quote1
-quote2
-> quote3
->
-> # H1 in quote
->
-> > ## H2 in quote
-> >
-> >    quote4
->
-> quote5
-
->
-> 
-
-Paragraph 2
-
-MD
-
-say "TEST PARSED:", $mdres;
-
-my $translator = MD2HTML.new(elem => $mdres.ast);
-say $translator.translate;
-
-ok True, "Fine";
 ]
+
 done-testing;

@@ -7,10 +7,10 @@ use ManulC::Parser::MD;
 subtest "Basic elements", {
     plan 5;
 
-    my Int $*indent-width = 4;
+    my Int $*md-indent-width = 4;
     my ($text, $res);
 
-    for 0..^$*indent-width -> $iwidth {
+    for 0..^$*md-indent-width -> $iwidth {
         $text = " " x $iwidth;
         $res = MDParse( $text, rule => "md-li-indent" );
         ok so $res, "{$iwidth}-space indent";
@@ -22,7 +22,7 @@ subtest "Basic elements", {
 subtest "Bullet list", {
     plan 10;
     my ( $text, $res );
-    my Int $*indent-width = 4;
+    my Int $*md-indent-width = 4;
 
     $text = qq{- Item 1
 - Item 2
@@ -100,7 +100,7 @@ paragraph
 
 subtest "Numbered list", {
     my ( $text, $res );
-    my Int $*indent-width = 4;
+    my Int $*md-indent-width = 4;
 
     $text = qq{1. Item 1
 1. Item 2
@@ -145,7 +145,7 @@ subtest "Numbered list", {
 subtest "Mixed", {
     plan 4;
     my ( $text, $res );
-    my Int $*indent-width = 4;
+    my Int $*md-indent-width = 4;
 
     $text = qq{* Item 1
 + Item 2
@@ -178,7 +178,7 @@ subtest "Mixed", {
 
 subtest "Sublists", {
     my ( $text, $res );
-    my Int $*indent-width = 4;
+    my Int $*md-indent-width = 4;
 
     $text = qq{1. Item1
 Item 1a
@@ -215,9 +215,9 @@ Para 3.1a line 2
 };
 
 subtest "With code block", {
-    plan 1;
+    plan 2;
     my ( $text, $res );
-    my Int $*indent-width = 4;
+    my Int $*md-indent-width = 4;
 
     $text = qq{* Item 1
 + Item 2
@@ -242,7 +242,7 @@ subtest "With code block", {
 subtest "Badly formatted", {
     plan 1;
     my ( $text, $res );
-    my Int $*indent-width = 4;
+    my Int $*md-indent-width = 4;
 
     $text = qq{* Item 1
 + Item 2
