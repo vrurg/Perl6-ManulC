@@ -4,11 +4,17 @@ use v6;
 use Test;
 use ManulC::Parser::MD;
 
+my Int $*md-indent-width;
+my Str @*md-quotable;
+my Regex $*md-line-end;
+my Bool %*md-line-elems;
+
 subtest "Basic elements", {
     plan 5;
 
-    my Int $*md-indent-width = 4;
     my ($text, $res);
+
+    Markdown::prepare-globals;
 
     for 0..^$*md-indent-width -> $iwidth {
         $text = " " x $iwidth;
@@ -22,7 +28,8 @@ subtest "Basic elements", {
 subtest "Bullet list", {
     plan 10;
     my ( $text, $res );
-    my Int $*md-indent-width = 4;
+
+    Markdown::prepare-globals;
 
     $text = qq{- Item 1
 - Item 2
@@ -100,7 +107,8 @@ paragraph
 
 subtest "Numbered list", {
     my ( $text, $res );
-    my Int $*md-indent-width = 4;
+
+    Markdown::prepare-globals;
 
     $text = qq{1. Item 1
 1. Item 2
@@ -145,7 +153,8 @@ subtest "Numbered list", {
 subtest "Mixed", {
     plan 4;
     my ( $text, $res );
-    my Int $*md-indent-width = 4;
+
+    Markdown::prepare-globals;
 
     $text = qq{* Item 1
 + Item 2
@@ -178,7 +187,8 @@ subtest "Mixed", {
 
 subtest "Sublists", {
     my ( $text, $res );
-    my Int $*md-indent-width = 4;
+
+    Markdown::prepare-globals;
 
     $text = qq{1. Item1
 Item 1a
@@ -217,7 +227,8 @@ Para 3.1a line 2
 subtest "With code block", {
     plan 2;
     my ( $text, $res );
-    my Int $*md-indent-width = 4;
+
+    Markdown::prepare-globals;
 
     $text = qq{* Item 1
 + Item 2
@@ -242,7 +253,8 @@ subtest "With code block", {
 subtest "Badly formatted", {
     plan 1;
     my ( $text, $res );
-    my Int $*md-indent-width = 4;
+
+    Markdown::prepare-globals;
 
     $text = qq{* Item 1
 + Item 2

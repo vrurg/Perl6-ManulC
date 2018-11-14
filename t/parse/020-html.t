@@ -2,7 +2,6 @@ use v6;
 use Test;
 
 use ManulC::Parser::HTML;
-use Data::Dump;
 #no precompilation;
 #use Grammar::Tracer;
 
@@ -119,4 +118,4 @@ subtest {
 
 done-testing;
 
-# vim: ft=plain
+# vim: ft=perl6

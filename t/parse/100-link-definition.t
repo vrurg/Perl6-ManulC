@@ -6,7 +6,7 @@ use Grammar::Tracer;
 use Test;
 use ManulC::Parser::MD;
 
-plan 2;
+plan 1;
 
 subtest "Valid" => {
     my @tests = 

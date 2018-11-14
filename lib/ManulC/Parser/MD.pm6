@@ -1,8 +1,8 @@
 use v6.c;
-#`{
+#`«
 no precompilation;
 use Grammar::Tracer;
-}
+»
 
 module ManulC::Parser::MD {
     use ManulC::Parser::HTML;
@@ -83,8 +83,9 @@ module ManulC::Parser::MD {
                 || [ <md-link-definition> <?{ %*md-line-elems<link-definition> }> ]
                 || [ <md-emphasis>        <?{ %*md-line-elems<emphasis> }>    ]
                 || [ <md-chr-special>     <?{ %*md-line-elems<chr-special> }> ]
-                || <md-plain-str(rx/   [ <md-chr-special> <?{ %*md-line-elems<chr-special> }> ]
-                                    || [ <md-chr-escaped> <?{ %*md-line-elems<chr-escaped> }> ]
+                || <md-plain-str(rx/   
+                                    [ <md-chr-escaped> <?{ %*md-line-elems<chr-escaped> }> ]
+                                    || [ <md-chr-special> <?{ %*md-line-elems<chr-special> }> ]
                                     || $($*md-line-end)
                                 /)>
             ]+? <?before $($*md-line-end)>
@@ -228,8 +229,24 @@ module ManulC::Parser::MD {
             ]*
         }
 
-        token md-head {
+        token md-head-atx {
             ^^ $<md-hlevel>=[ '#' ** 1..6 ] \h+ <md-line> <md-nl>
+        }
+
+        token md-head-setext {
+            :my $hlen = 0;
+            ^^ <md-line> { $hlen = ( ~$<md-line> ).chars } <md-nl>
+            [ 
+                $<md-hlevel-first>=[ '=' ** {$hlen} ]
+                || $<md-hlevel=second>=[ '-' ** {$hlen} ]
+            ]
+            <md-nl>
+        }
+
+        token md-head {
+            :temp %*md-line-elems;
+            { only-line-elements( <html code emphasis chr-escaped chr-special> ) }
+            <md-head-atx> || <md-head-setext>
         }
 
         token md-hrule {
@@ -522,6 +539,12 @@ module ManulC::Parser::MD {
         }
     }
 
+    class MdEmphasis is MdPlainStr is export {
+        has Str $.mark is required;
+
+        method info-str { $.mark }
+    }
+
 # Grammar actions
     class MDGActions is export {
         has $.nodePrefix = 'Md';
@@ -562,12 +585,24 @@ module ManulC::Parser::MD {
             $/.make( $/<md-doc>.made );
         }
 
-        method md-head ($/) {
-            my $level = (~$/<md-hlevel>).chars;
-            #say "HEADING:", $/<md-line>;
+        method makeHead ( $m, Int $level ) {
             my $node = self.makeNode( "Head", :$level );
-            $node.push( $/<md-line>.made );
-            $/.make( $node );
+            $node.push( $m<md-line>.made );
+            $m.make( $node );
+        }
+
+        method md-head-setext ( $m ) {
+            my $level = $m<md-hlevel-first> ?? 1 !! 2;
+            self.makeHead( $m, $level )
+        }
+
+        method md-head-atx ( $m ) {
+            my $level = (~$m<md-hlevel>).chars;
+            self.makeHead( $m, $level )
+        }
+
+        method md-head ( $m ) {
+            $m.make( ( $m<md-head-atx> // $m<md-head-setext> ).ast );
         }
 
         method md-blockquote ($m) {
@@ -626,12 +661,22 @@ module ManulC::Parser::MD {
             $m.make( $node );
         }
 
-        method md-li-paragraph ($m) {
+        method md-li-paragraph ( $m ) {
             self.m2paragraph($m, "LiParagraph" );
         }
 
         method md-chr-escaped ($m) {
             $m.make( self.makeNode( "ChrEscaped", value => ~$m<md-escaped-chr> ) );
+        }
+
+        method md-emphasis ( $m ) {
+            $m.make(
+                self.makeNode( 
+                    'Emphasis',
+                    mark  => ~$m<md-emph-mark>,
+                    value => $m<md-line>.ast,
+                )
+            );
         }
 
         method md-link ( $m ) {

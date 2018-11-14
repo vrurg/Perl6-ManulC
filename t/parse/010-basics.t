@@ -10,7 +10,7 @@ subtest "Paragraphs/lines", {
 
     $text = qq{
 A paragraph 
-with a & \\& couple 
+with a * \\* couple 
 of lines&dot;.
 
 Then another one
@@ -20,20 +20,26 @@ With more than <a
 href="123">one</a> line too.};
 
     $res = MDParse( $text );
+    #diag $res.gist;
     ok so $res, "simple document";
     is-deeply
         $res.ast,
-        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A paragraph \nwith a ", type => "PlainStr"), ManulC::Parser::MD::MdChrSpecial.new(value => "\&", type => "ChrSpecial"), ManulC::Parser::MD::MdPlainStr.new(value => " ", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => "\&", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => " couple \nof lines", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "\&dot;", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => ".", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Then another one", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "And a final one.\nWith more than ", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "<a\nhref=\"123\">", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => "one", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "</a>", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => " line too.", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A paragraph \nwith a ", type => "PlainStr"), ManulC::Parser::MD::MdChrSpecial.new(value => "*", type => "ChrSpecial"), ManulC::Parser::MD::MdPlainStr.new(value => " ", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => "*", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => " couple \nof lines", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "\&dot;", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => ".", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Then another one", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "And a final one.\nWith more than ", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "<a\nhref=\"123\">", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => "one", type => "PlainStr"), ManulC::Parser::MD::MdHtmlElem.new(value => "</a>", type => "HtmlElem"), ManulC::Parser::MD::MdPlainStr.new(value => " line too.", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "", type => "PlainData")], type => "Paragraph")], type => "Doc"),
         "simple document structure";
 }
 
 subtest "Escaped chars", {
     my ($text, $res);
 
-    my Str @*md-quotable = qw{\ . &};
+    my Int $*md-indent-width;
+    my Str @*md-quotable;
+    my Regex $*md-line-end;
+    my Bool %*md-line-elems;
+    Markdown::prepare-globals;
 
     $text = q{1\.2\e\\\\f};
     $res = MDParse( $text, rule => "md-line" );
+    #diag $res.gist;
     ok so $res, "escaped chars";
     is-deeply
         $res.ast,
@@ -77,7 +83,7 @@ subtest "Blank space", {
     #diag $res.ast.perl;
 }
 
-subtest "Paragraphs", {
+subtest "Paragraphs" => {
     my ($text, $res);
 
     $text = q{Single line};
@@ -131,12 +137,95 @@ And fourth starts here...
     #diag $res.ast.perl;
 };
 
+subtest "Valid Headings" => {
+    my @tests = 
+        {
+            text => q{
+First Level
+===========
+            },
+            name => 'underlined first level',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdHead.new(level => 1, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First Level", type => "PlainStr")], type => "Line")], type => "Head"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        {
+            text => q{
+Second Level
+------------
+            },
+            name => 'underlined second level',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdHead.new(level => 2, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second Level", type => "PlainStr")], type => "Line")], type => "Head"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        {
+            text => q{
+ Second Level
+-------------
+            },
+            name => 'heading with a leading space',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdHead.new(level => 2, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => " Second Level", type => "PlainStr")], type => "Line")], type => "Head"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        {
+            text => q{
+# First Level Hashed
+            },
+            name => 'hashed first level',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdHead.new(level => 1, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First Level Hashed", type => "PlainStr")], type => "Line")], type => "Head"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        ;
+
+    plan 2 * @tests.elems;
+
+    for @tests -> $test {
+        my $res = MDParse( $test<text> );
+        #diag $res.gist;
+        ok so $res, $test<name>;
+        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
+        #note $res.ast.perl;
+    }
+}
+
+subtest "Invalid Headings" => {
+    my @tests = 
+        {
+            text => q{
+First Level
+==========
+            },
+            name => 'unmatched underline length',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First Level\n==========", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        {
+            text => q{
+Second Level
+-------=----
+            },
+            name => 'mixed underline chars',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second Level\n-------=----", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        ;
+
+    plan 2 * @tests.elems;
+
+    for @tests -> $test {
+        my $res = MDParse( $test<text> );
+        #diag $res.gist;
+        ok so $res, $test<name>;
+        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
+        #note $res.ast.perl;
+    }
+}
+
 #`[ Temorarily disable a long-running test
 subtest "Horizontal rules", {
     plan 5186;
     my ( $text, $res );
     my $para1 = qq{A paragraph\n\n};
     my $para2 = qq{\n\nFinal paragraph};
+
+    my Int $*md-indent-width;
+    my Str @*md-quotable;
+    my Regex $*md-line-end;
+    my Bool %*md-line-elems;
+    Markdown::prepare-globals;
 
     for qw{ * - _ } -> $sym {
         for 3..6 -> $length {
