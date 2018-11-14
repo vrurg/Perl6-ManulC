@@ -289,6 +289,11 @@ module ManulC::Parser::MD {
 
         token md-code-block {
             :my $*md-cb-prefix;
+            <md-codeblock-std> || <md-codeblock-github>
+        }
+
+        # Stadndard markdown code block defined by indentation.
+        token md-codeblock-std {
             <md-cb-first-line>
             <md-cb-line>* 
         }
@@ -303,6 +308,15 @@ module ManulC::Parser::MD {
 
         token md-cb-line-body {
             \N+ <md-nl>
+        }
+
+        # GitHub-style code block defined with ``` and language name support
+        token md-codeblock-github {
+            ^^ ' '* { $*md-cb-prefix = ~$/ } '```'
+               [ $<md-cb-language>=\S+ ]? 
+               [ <md-nl> || \s $<md-cb-comment>=\N*? <md-nl> ]
+            <md-cb-line>*?
+            ^^ $($*md-cb-prefix) '```' <md-nl>
         }
 
         my $li-bullet-start = q{<[*+-]>};
@@ -469,9 +483,15 @@ module ManulC::Parser::MD {
     class MdHtmlElem        is MdPlainData  is export { }
     class MdParagraph       is MdContainer  is export { }
     class MdList            is MdContainer  is export { }
+    class MdCodeBlock       is MdPlainData  is export { }
 
-    class MdCodeBlock is MdPlainData is export {
+    class MdCodeblockStd is MdCodeBlock is export {
         has Str $.indent;
+    }
+
+    class MdCodeblockGithub is MdCodeBlock is export {
+        has Str $.language;
+        has Str $.comment;
     }
 
     class MdLiItem is MdContainer is export {
@@ -611,11 +631,28 @@ module ManulC::Parser::MD {
             $m.make( $bq );
         }
 
-        method md-code-block ($m) {
+        method md-code-block ( $m ) {
+            $m.make( ( $m<md-codeblock-std> // $m<md-codeblock-github> ).ast );
+        }
+
+        method md-codeblock-std ( $m ) {
             my $indent = ~$m<md-cb-first-line><md-first-pfx>;
             my $value = ~$m<md-cb-first-line><md-cb-line-body> ~
                         [~] $m<md-cb-line>.map: { ~ $_<md-cb-line-body> }
-            $m.make( self.makeNode( "CodeBlock", :$indent, :$value ) );
+            $m.make( self.makeNode( "CodeblockStd", :$indent, :$value ) );
+        }
+
+        method md-codeblock-github ( $m ) {
+            my %cb-params = value => [~] $m<md-cb-line>.map: { ~ $_<md-cb-line-body> };
+
+            %cb-params<language> = ~$_ with $m<md-cb-language>;
+            %cb-params<comment>  = ~$_ with $m<md-cb-comment>;
+
+            $m.make(
+                self.makeNode(
+                    "CodeblockGithub", |%cb-params
+                )
+            )
         }
 
         method md-sublist ($m) {
