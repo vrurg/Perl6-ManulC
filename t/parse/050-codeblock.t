@@ -4,7 +4,7 @@ use v6;
 use Test;
 use ManulC::Parser::MD;
 
-plan 1;
+plan 2;
 
 my Int $*md-indent-width;
 my Str @*md-quotable;
@@ -72,8 +72,50 @@ paragraph
                       here
                     ```
                     CODE
-            name => 'basic GitHub-like code block',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockGithub.new(language => Str, comment => Str, value => "the code goes\n  here\n", type => "CodeblockGithub")], type => "Doc"),
+            name => 'basic fenced code block',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
+        },
+        {
+            text => q:to/CODE/,
+                    ~~~
+                    the code goes
+                      here
+                    ~~~
+                    CODE
+            name => 'basic code block with tilde-fence',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
+        },
+        {
+            text => q:to/CODE/,
+                    `````
+                    the code goes
+                      here
+                    `````
+                    CODE
+            name => 'basic fenced code block with longer fence',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
+        },
+        {
+            text => q:to/CODE/,
+                    `````
+                    ```
+                    the code goes
+                      here
+                    ```
+                    `````
+                    CODE
+            name => 'backticks inside backtick-fenced codeblock',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "```\nthe code goes\n  here\n```\n", type => "CodeblockFenced")], type => "Doc"),
+        },
+        {
+            text => q:to/CODE/,
+                    `````
+                    the code goes
+                      here
+                    ```````
+                    CODE
+            name => 'basic fenced code block with closing fence longer than the opening one',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
         },
         {
             text => q:to/CODE/,
@@ -82,8 +124,8 @@ paragraph
                       here
                     ```
                     CODE
-            name => 'GitHub-like code block with language name',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockGithub.new(language => "text", comment => Str, value => "the code goes\n  here\n", type => "CodeblockGithub")], type => "Doc"),
+            name => 'fenced code block with language name',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => "text", comment => Str, value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
         },
         {
             text => q:to/CODE/,
@@ -92,8 +134,8 @@ paragraph
                       here
                     ```
                     CODE
-            name => 'GitHub-like code block with "comment"',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockGithub.new(language => Str, comment => "garbage text", value => "the code goes\n  here\n", type => "CodeblockGithub")], type => "Doc"),
+            name => 'fenced code block with "comment"',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => "garbage text", value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
         },
         {
             text => q:to/CODE/,
@@ -102,8 +144,8 @@ paragraph
                       here
                     ```
                     CODE
-            name => 'GitHub-like code block with language and "comment"',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockGithub.new(language => "text", comment => "garbage text", value => "the code goes\n  here\n", type => "CodeblockGithub")], type => "Doc"),
+            name => 'fenced code block with language and "comment"',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => "text", comment => "garbage text", value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
         },
         {
             text => q:to/CODE/,
@@ -112,16 +154,43 @@ paragraph
                         here
                       ```
                     CODE
-            name => 'basic indented GitHub-like code block',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockGithub.new(language => Str, comment => Str, value => "the code goes\n  here\n", type => "CodeblockGithub")], type => "Doc"),
+            name => 'basic indented fenced code block',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
         },
         {
             text => q:to/CODE/,
                     ```
                     ```
                     CODE
-            name => 'empty GitHub-like code block',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockGithub.new(language => Str, comment => Str, value => "", type => "CodeblockGithub")], type => "Doc"),
+            name => 'empty fenced code block',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "", type => "CodeblockFenced")], type => "Doc"),
+        },
+        ;
+
+    plan 2 * @tests.elems;
+
+    for @tests -> $test {
+        Markdown::prepare-globals;
+        my $res = MDParse( $test<text> );
+        #diag $res.gist;
+        #diag $res.ast.dump;
+        ok so $res, $test<name>;
+        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
+        #diag $res.ast.perl;
+    }
+}
+
+subtest "Invalid" => {
+    my @tests = 
+        {
+            text => q:to/CODE/,
+                    ````
+                    the code goes
+                      here
+                    ```
+                    CODE
+            name => 'fenced fencing, length mismatch',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainData.new(value => "````\nthe code goes\n  here\n``", type => "PlainData"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
         },
         ;
 

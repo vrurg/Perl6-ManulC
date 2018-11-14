@@ -289,7 +289,7 @@ module ManulC::Parser::MD {
 
         token md-code-block {
             :my $*md-cb-prefix;
-            <md-codeblock-std> || <md-codeblock-github>
+            <md-codeblock-std> || <md-codeblock-fenced>
         }
 
         # Stadndard markdown code block defined by indentation.
@@ -310,13 +310,21 @@ module ManulC::Parser::MD {
             \N+ <md-nl>
         }
 
-        # GitHub-style code block defined with ``` and language name support
-        token md-codeblock-github {
-            ^^ ' '* { $*md-cb-prefix = ~$/ } '```'
+        # Fenced code block defined with ` or ~ and language name support
+        token md-cb-fence {
+            [ '`' ** 3..* || '~' ** 3..* ] {
+                $*md-cb-fence-char =  $/.substr( 0, 1 );
+                $*md-cb-fence-length = $/.chars;
+            }
+        }
+
+        token md-codeblock-fenced {
+            :my ( $*md-cb-fence-length, $*md-cb-fence-char );
+            ^^ ' '* { $*md-cb-prefix = ~$/ } <md-cb-fence> 
                [ $<md-cb-language>=\S+ ]? 
                [ <md-nl> || \s $<md-cb-comment>=\N*? <md-nl> ]
             <md-cb-line>*?
-            ^^ $($*md-cb-prefix) '```' <md-nl>
+            ^^ $($*md-cb-prefix) $($*md-cb-fence-char) ** {$*md-cb-fence-length..Inf} <md-nl>
         }
 
         my $li-bullet-start = q{<[*+-]>};
@@ -489,7 +497,7 @@ module ManulC::Parser::MD {
         has Str $.indent;
     }
 
-    class MdCodeblockGithub is MdCodeBlock is export {
+    class MdCodeblockFenced is MdCodeBlock is export {
         has Str $.language;
         has Str $.comment;
     }
@@ -632,7 +640,7 @@ module ManulC::Parser::MD {
         }
 
         method md-code-block ( $m ) {
-            $m.make( ( $m<md-codeblock-std> // $m<md-codeblock-github> ).ast );
+            $m.make( ( $m<md-codeblock-std> // $m<md-codeblock-fenced> ).ast );
         }
 
         method md-codeblock-std ( $m ) {
@@ -642,7 +650,7 @@ module ManulC::Parser::MD {
             $m.make( self.makeNode( "CodeblockStd", :$indent, :$value ) );
         }
 
-        method md-codeblock-github ( $m ) {
+        method md-codeblock-fenced ( $m ) {
             my %cb-params = value => [~] $m<md-cb-line>.map: { ~ $_<md-cb-line-body> };
 
             %cb-params<language> = ~$_ with $m<md-cb-language>;
@@ -650,7 +658,7 @@ module ManulC::Parser::MD {
 
             $m.make(
                 self.makeNode(
-                    "CodeblockGithub", |%cb-params
+                    "CodeblockFenced", |%cb-params
                 )
             )
         }
