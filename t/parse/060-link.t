@@ -6,6 +6,11 @@ use Grammar::Tracer;
 use Test;
 use ManulC::Parser::MD;
 
+my Int $*md-indent-width;
+my Regex $*md-quotable;
+my Regex $*md-line-end;
+my Bool %*md-line-elems;
+
 plan 2;
 
 subtest "Valid" => {
@@ -55,10 +60,6 @@ subtest "Valid" => {
     plan 2 * @tests.elems;
 
     for @tests -> $test {
-        my Int $*md-indent-width;
-        my Str @*md-quotable;
-        my Regex $*md-line-end;
-        my Bool %*md-line-elems;
         Markdown::prepare-globals;
         my $res = MDParse( $test<text>, rule => 'md-link' );
         #diag $res.gist;
@@ -95,10 +96,6 @@ subtest "Invalid" => {
     plan @tests.elems;
 
     for @tests -> $test {
-        my Int $*md-indent-width;
-        my Str @*md-quotable;
-        my Regex $*md-line-end;
-        my Bool %*md-line-elems;
         Markdown::prepare-globals;
         my $res = MDParse( $test<text>, rule => 'md-link' );
         nok so $res, $test<name>;

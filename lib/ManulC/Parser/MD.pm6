@@ -30,7 +30,7 @@ module ManulC::Parser::MD {
 
         our sub prepare-globals {
             $*md-indent-width = 4;
-            @*md-quotable = qw{\ ` * _ { } [ ] ( ) # + - . !};
+            $*md-quotable = rx/\W/;
             $*md-line-end = rx/<.md-eol>/;
             all-line-elements;
         }
@@ -38,7 +38,7 @@ module ManulC::Parser::MD {
         rule TOP {
             #:my Int $*md-line = 1;
             :my Int $*md-indent-width;
-            :my Str @*md-quotable;
+            :my Regex $*md-quotable;
             :my $*md-line-end;
             :my Bool %*md-line-elems;
             { prepare-globals }
@@ -92,7 +92,7 @@ module ManulC::Parser::MD {
         }
 
         token md-chr-escaped {
-            \\ $<md-escaped-chr>=@*md-quotable
+            \\ $<md-escaped-chr>=$($*md-quotable)
         }
         token md-chr-special { <[&<>_*`()[\]]> }
         token md-plain-str ($str-end) { [ <!before $($str-end)> . ]+ }
@@ -221,7 +221,7 @@ module ManulC::Parser::MD {
         # - " enclosed
         # - could be empty (is it a good idea?)
         token md-link-addr-title {
-            :temp @*md-quotable = qw{\ "};
+            :temp $*md-quotable = rx/<[\"]>/;
             \" ~ \" [
                 <md-chr-escaped>
                 || <md-chr-special>

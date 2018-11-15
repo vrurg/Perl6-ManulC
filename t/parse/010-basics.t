@@ -32,7 +32,7 @@ subtest "Escaped chars", {
     my ($text, $res);
 
     my Int $*md-indent-width;
-    my Str @*md-quotable;
+    my Regex $*md-quotable;
     my Regex $*md-line-end;
     my Bool %*md-line-elems;
     Markdown::prepare-globals;
@@ -214,6 +214,33 @@ Second Level
     }
 }
 
+subtest "Quoting" => {
+    my @tests = 
+        {
+            text => q{A line with \a quoted\. Symbols \&...},
+            name => 'basic quoting',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A line with \\a quoted", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => ".", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => " Symbols ", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => "\&", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => "...", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q{With a newline\
+quoting
+and without},
+            name => 'newline quoting',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "With a newline", type => "PlainStr"), ManulC::Parser::MD::MdChrEscaped.new(value => "\n", type => "ChrEscaped"), ManulC::Parser::MD::MdPlainStr.new(value => "quoting\nand without", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+        },
+        ;
+
+    plan 2 * @tests.elems;
+
+    for @tests -> $test {
+        my $res = MDParse( $test<text> );
+        #diag $res.gist;
+        ok so $res, $test<name>;
+        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
+        #note $res.ast.perl;
+    }
+}
+
 #`[ Temorarily disable a long-running test
 subtest "Horizontal rules", {
     plan 5186;
@@ -221,10 +248,6 @@ subtest "Horizontal rules", {
     my $para1 = qq{A paragraph\n\n};
     my $para2 = qq{\n\nFinal paragraph};
 
-    my Int $*md-indent-width;
-    my Str @*md-quotable;
-    my Regex $*md-line-end;
-    my Bool %*md-line-elems;
     Markdown::prepare-globals;
 
     for qw{ * - _ } -> $sym {
@@ -268,3 +291,4 @@ subtest "Horizontal rules", {
 ]
 
 done-testing;
+# vim: ft=perl6

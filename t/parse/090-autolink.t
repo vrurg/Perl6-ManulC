@@ -8,6 +8,11 @@ use ManulC::Parser::MD;
 
 plan 1;
 
+my Int $*md-indent-width;
+my Regex $*md-quotable;
+my Regex $*md-line-end;
+my Bool %*md-line-elems;
+
 subtest "Valid" => {
     my @tests = 
         {
@@ -30,10 +35,6 @@ subtest "Valid" => {
     plan 2 * @tests.elems;
 
     for @tests -> $test {
-        my Int $*md-indent-width;
-        my Str @*md-quotable;
-        my Regex $*md-line-end;
-        my Bool %*md-line-elems;
         Markdown::prepare-globals;
         my $res = MDParse( $test<text> );
         #diag $res.gist;

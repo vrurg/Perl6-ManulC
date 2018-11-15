@@ -7,7 +7,7 @@ use ManulC::Parser::MD;
 plan 2;
 
 my Int $*md-indent-width;
-my Str @*md-quotable;
+my Regex $*md-quotable;
 my Regex $*md-line-end;
 my Bool %*md-line-elems;
 

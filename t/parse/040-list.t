@@ -5,7 +5,7 @@ use Test;
 use ManulC::Parser::MD;
 
 my Int $*md-indent-width;
-my Str @*md-quotable;
+my Regex $*md-quotable;
 my Regex $*md-line-end;
 my Bool %*md-line-elems;
 
@@ -242,7 +242,7 @@ subtest "With code block", {
     ok so $res, "list with code block";
     is-deeply
         $res.ast,
-        ManulC::Parser::MD::MdList.new(content => [ManulC::Parser::MD::MdLiItem.new(starter => "*", content => [ManulC::Parser::MD::MdLiParagraph.new(indent => Str, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Item 1", type => "PlainStr")], type => "Line")], type => "LiParagraph")], type => "LiItem"), ManulC::Parser::MD::MdLiItem.new(starter => "+", content => [ManulC::Parser::MD::MdLiParagraph.new(indent => Str, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Item 2", type => "PlainStr")], type => "Line")], type => "LiParagraph"), ManulC::Parser::MD::MdLiItemSpacer.new(value => "\n\n", type => "LiItemSpacer"), ManulC::Parser::MD::MdCodeBlock.new(indent => "    ", value => "Included code block\non two lines\n", type => "CodeBlock")], type => "LiItem"), ManulC::Parser::MD::MdLiItem.new(starter => "+", content => [ManulC::Parser::MD::MdLiParagraph.new(indent => Str, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Item 3", type => "PlainStr")], type => "Line")], type => "LiParagraph")], type => "LiItem")], type => "List"),
+        ManulC::Parser::MD::MdList.new(content => [ManulC::Parser::MD::MdLiItem.new(starter => "*", content => [ManulC::Parser::MD::MdLiParagraph.new(indent => Str, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Item 1", type => "PlainStr")], type => "Line")], type => "LiParagraph")], type => "LiItem"), ManulC::Parser::MD::MdLiItem.new(starter => "+", content => [ManulC::Parser::MD::MdLiParagraph.new(indent => Str, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Item 2", type => "PlainStr")], type => "Line")], type => "LiParagraph"), ManulC::Parser::MD::MdLiItemSpacer.new(value => "\n\n", type => "LiItemSpacer"), ManulC::Parser::MD::MdCodeblockStd.new(indent => "    ", value => "Included code block\non two lines\n", type => "CodeblockStd")], type => "LiItem"), ManulC::Parser::MD::MdLiItem.new(starter => "+", content => [ManulC::Parser::MD::MdLiParagraph.new(indent => Str, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Item 3", type => "PlainStr")], type => "Line")], type => "LiParagraph")], type => "LiItem")], type => "List"),
         "list with code block structure";
     
         #diag MDDumpAST( $res.ast );
