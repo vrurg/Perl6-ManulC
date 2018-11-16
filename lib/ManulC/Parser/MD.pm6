@@ -10,7 +10,7 @@ module ManulC::Parser::MD {
     grammar Markdown is export {
         also does HTML-Tag;
 
-        enum LineElements <html code autolink link emphasis chr-escaped chr-special link-definition>;
+        enum LineElements <html code attributes autolink link emphasis chr-escaped chr-special link-definition>;
 
         my sub set-line-elements ( *%elems ) {
             %*md-line-elems{$_} = so %elems{$_} for %elems.keys;
@@ -50,11 +50,11 @@ module ManulC::Parser::MD {
             || [
                 <md-blank-space>
                 || [
-                    <md-head>
+                    <md-header>
                     || <md-hrule>
                     || <md-linkdef-paragraph>
                     || <md-list>
-                    || <md-code-block>
+                    || <md-codeblock>
                     || <md-blockquote>
                     || <md-paragraph>
                 ]+ %% <md-blank-space>
@@ -76,6 +76,7 @@ module ManulC::Parser::MD {
         token md-line {
             [ 
                    [ <md-chr-escaped>     <?{ %*md-line-elems<chr-escaped> }> ]
+                || [ <md-attributes>      <?{ %*md-line-elems<attributes> }>  ]
                 || [ <md-autolink>        <?{ %*md-line-elems<autolink> }>    ]
                 || [ <md-html-elem>       <?{ %*md-line-elems<html> }>        ]
                 || [ <md-code-inline>     <?{ %*md-line-elems<code> }>        ]
@@ -91,34 +92,49 @@ module ManulC::Parser::MD {
             ]+? <?before $($*md-line-end)>
         }
 
+        token md-attributes {
+            '{' ~ '}' [ \s* <md-attribute>+ % \s+ \s* ]
+        }
+
+        proto token md-attribute {*}
+        token md-attribute:sym<class> {
+            '.' $<md-attr-class>=[ <:L + :N + [-]>+ ]
+        }
+        token md-attribute:sym<id> {
+            '#' $<md-attr-id>=[ <:L + :N + [-]>+ ]
+        }
+        token md-attribute:sym<keyval> {
+            :my $*html-nonval-chars = rx/ \} /;
+            $<md-attr-key>=<mdHTMLAttrName> '=' $<md-attr-val>=<mdHTMLAttrVal>
+        }
+
         token md-chr-escaped {
             \\ $<md-escaped-chr>=$($*md-quotable)
         }
-        token md-chr-special { <[&<>_*`()[\]]> }
+        token md-chr-special { <[&<>_*`(){}[\]]> }
         token md-plain-str ($str-end) { [ <!before $($str-end)> . ]+ }
 
-        token md-addr-url {
+        proto token md-addr {*}
+        token md-addr:sym<url> {
             \w+ '://' \S+? <?before '>'>
         }
 
-        token md-addr-email {
+        token md-addr:sym<email> {
             \S+? '@' \S+? <?before '>'>
         }
 
         token md-autolink {
-            '<' ~ '>' [ <md-addr-url> || <md-addr-email> ]
+            '<' ~ '>' <md-addr>
         }
 
-        token md-link {
-            <md-link-adhoc> || <md-link-reference>
-        }
+        proto token md-link {*}
 
-        token md-link-adhoc {
+        token md-link:sym<adhoc> {
             '[' ~ ']' <md-link-text>
             '(' ~ ')' <md-link-dest>
         }
 
-        token md-link-reference {
+        token md-link:sym<reference> {
             [ '[' ~ ']' <md-linkdef-id> \h* '[]' ]
             ||
             [ '[' ~ ']' <md-link-text> \h* '[' ~ ']' <md-linkdef-id> ]
@@ -145,8 +161,7 @@ module ManulC::Parser::MD {
 
         token md-linkdef-addr {
             <md-autolink>
-            || <md-addr-url>
-            || <md-addr-email>
+            || <md-addr>
             || $<md-linkdef-addr-value>=\S+ 
         }
 
@@ -229,24 +244,46 @@ module ManulC::Parser::MD {
             ]*
         }
 
-        token md-head-atx {
-            ^^ $<md-hlevel>=[ '#' ** 1..6 ] \h+ <md-line> <md-nl>
+        token md-header {
+            :temp %*md-line-elems;
+            { only-line-elements( <html attributes code link emphasis chr-escaped chr-special> ) }
+            <md-head>
         }
 
-        token md-head-setext {
-            :my $hlen = 0;
-            ^^ <md-line> { $hlen = ( ~$<md-line> ).chars } <md-nl>
-            [ 
-                $<md-hlevel-first>=[ '=' ** {$hlen} ]
-                || $<md-hlevel=second>=[ '-' ** {$hlen} ]
-            ]
+        proto token md-head {*}
+
+        token md-head:sym<atx> {
+            :temp $*md-line-end;
+            ^^
+            $<md-hlevel>=[ '#' ** 1..6 ] { 
+                $*md-line-end = rx{
+                    [ \h+ '#'+ \h* ]? <md-attributes>? <.md-eol>
+                } # rx end
+            } 
+            \h+ 
+            <md-line> 
+            [ \h+ '#'+ \h* ]? 
+            <md-attributes>?
             <md-nl>
         }
 
-        token md-head {
-            :temp %*md-line-elems;
-            { only-line-elements( <html code emphasis chr-escaped chr-special> ) }
-            <md-head-atx> || <md-head-setext>
+        token md-head:sym<setext> {
+            :temp $*md-line-end;
+            ^^
+            # Do a fast check-up first because otherwise this rule is tested against every other entity in the document
+            # and md-line is parsed repeatedly for each invocation. This is why I hated setext-styled headings since the
+            # beginning...
+            [ \N+ <md-nl> [ '='+ || '-'+ ] <md-nl> ] 
+            &&
+            [
+                { $*md-line-end = rx{ <.md-attributes>? <.md-eol> }; }
+                <md-line> \h* <md-attributes>? \h* <md-nl>
+                [ 
+                    $<md-hlevel-first>=[ '='+ ]
+                    || $<md-hlevel=second>=[ '-'+ ]
+                ]
+                <md-nl>
+            ]
         }
 
         token md-hrule {
@@ -287,15 +324,23 @@ module ManulC::Parser::MD {
             ]
         }
 
-        token md-code-block {
-            :my $*md-cb-prefix;
-            <md-codeblock-std> || <md-codeblock-fenced>
-        }
+        proto token md-codeblock {*}
 
         # Stadndard markdown code block defined by indentation.
-        token md-codeblock-std {
+        token md-codeblock:sym<std> {
+            :my $*md-cb-prefix;
             <md-cb-first-line>
             <md-cb-line>* 
+        }
+
+        token md-codeblock:sym<fenced> {
+            :my $*md-cb-prefix;
+            :my ( $*md-cb-fence-length, $*md-cb-fence-char );
+            ^^ ' '* { $*md-cb-prefix = ~$/ } <md-cb-fence> 
+               [ $<md-cb-language>=\S+ ]? 
+               [ <md-nl> || \s $<md-cb-comment>=\N*? <md-nl> ]
+            <md-cb-line>*?
+            ^^ $($*md-cb-prefix) $($*md-cb-fence-char) ** {$*md-cb-fence-length..Inf} <md-nl>
         }
 
         token md-cb-first-line {
@@ -316,15 +361,6 @@ module ManulC::Parser::MD {
                 $*md-cb-fence-char =  $/.substr( 0, 1 );
                 $*md-cb-fence-length = $/.chars;
             }
-        }
-
-        token md-codeblock-fenced {
-            :my ( $*md-cb-fence-length, $*md-cb-fence-char );
-            ^^ ' '* { $*md-cb-prefix = ~$/ } <md-cb-fence> 
-               [ $<md-cb-language>=\S+ ]? 
-               [ <md-nl> || \s $<md-cb-comment>=\N*? <md-nl> ]
-            <md-cb-line>*?
-            ^^ $($*md-cb-prefix) $($*md-cb-fence-char) ** {$*md-cb-fence-length..Inf} <md-nl>
         }
 
         my $li-bullet-start = q{<[*+-]>};
@@ -352,7 +388,7 @@ module ManulC::Parser::MD {
                 $<md-li-item-spacer>=[ <md-nl> <md-blank-space>? ] <!before <.md-li-item-start>>
                     [
                         <md-sublist>
-                        || <md-code-block>
+                        || <md-codeblock>
                         || \h <md-li-paragraph>
                     ]
             ]*
@@ -444,7 +480,7 @@ module ManulC::Parser::MD {
         method ast-dump ( Int $level --> Str ) { 
             self.dump-prefix( $level ) ~
             self.name ~ (
-                self.^can( "info-str" ) ?? "[" ~ self.info-str ~ "]" !! ""
+                self.^can( "info-str" ) ?? " [" ~ self.info-str ~ "]" !! ""
             )
         }
     }
@@ -468,15 +504,6 @@ module ManulC::Parser::MD {
 
         method ast-dump ( Int $level --> Str ) {
             callsame() ~ "\n" ~ @.content.map( { .ast-dump( $level + 1 ) } ).join( "\n" )
-        }
-    }
-
-    class MdHead is MdContainer is export {
-        has $.level is required;
-
-        method name {
-            my $name = callsame;
-            $name ~ " #$!level";
         }
     }
 
@@ -528,6 +555,9 @@ module ManulC::Parser::MD {
 
     class MdAddrEmail           is MdPlainStr       is export { }
     class MdAddrUrl             is MdPlainStr       is export { }
+    class MdAttributes          is MdContainer      is export { }
+    class MdAttributeClass      is MdPlainStr       is export { }
+    class MdAttributeId         is MdPlainStr       is export { }
     class MdAutolink            is MdPlainData      is export { }
     class MdLine                is MdContainer      is export { }
     class MdLinkAddrTitle       is MdContainer      is export { }
@@ -538,6 +568,27 @@ module ManulC::Parser::MD {
     class MdSublist             is MdList           is export { }
     class MdLiItemSpacer        is MdPlainStr       is export { }
     class MdLinkdefAddr         is MdPlainData      is export { }
+
+    class MdHead is MdContainer is export {
+        has $.level is required;
+        has MdAttributes $.attributes;
+
+        method name {
+            my $name = callsame;
+            $name ~ " #$!level";
+        }
+    }
+
+    class MdAttributeKeyval is MdPlainData is export {
+        has Str $.key;
+        has Str $.quote;
+
+        method info-str {
+            my $qinf = "";
+            $qinf = ";quote:" ~ $_ with $.quote;
+            "key:$.key$qinf"
+        }
+    }
 
     class MdLinkAdhoc is MdLink is export {
         has MdLinkAddrTitle $.title;
@@ -582,8 +633,9 @@ module ManulC::Parser::MD {
         has $!plainDataClass;
 
         # Takes a rule name in form md-word1-woRd2, returns MdWord1WoRd2
-        method rule2type ( Str $ruleName ) {
+        method rule2type ( Str $ruleName is copy ) {
             return $ruleName unless $ruleName ~~ /^ "md-" /;
+            $ruleName ~~ s/':' sym '<' (.+?) '>'/-$0/;
             $ruleName.split("-")[1..*].map( { .tc } ).join;
         }
 
@@ -616,21 +668,20 @@ module ManulC::Parser::MD {
         method makeHead ( $m, Int $level ) {
             my $node = self.makeNode( "Head", :$level );
             $node.push( $m<md-line>.made );
+            $node.push: .ast with $m<md-attributes>;
             $m.make( $node );
         }
 
-        method md-head-setext ( $m ) {
+        method md-header ( $m ) { $m.make( $m<md-head>.ast ) }
+
+        method md-head:sym<setext> ( $m ) {
             my $level = $m<md-hlevel-first> ?? 1 !! 2;
             self.makeHead( $m, $level )
         }
 
-        method md-head-atx ( $m ) {
+        method md-head:sym<atx> ( $m ) {
             my $level = (~$m<md-hlevel>).chars;
             self.makeHead( $m, $level )
-        }
-
-        method md-head ( $m ) {
-            $m.make( ( $m<md-head-atx> // $m<md-head-setext> ).ast );
         }
 
         method md-blockquote ($m) {
@@ -639,18 +690,14 @@ module ManulC::Parser::MD {
             $m.make( $bq );
         }
 
-        method md-code-block ( $m ) {
-            $m.make( ( $m<md-codeblock-std> // $m<md-codeblock-fenced> ).ast );
-        }
-
-        method md-codeblock-std ( $m ) {
+        method md-codeblock:sym<std> ( $m ) {
             my $indent = ~$m<md-cb-first-line><md-first-pfx>;
             my $value = ~$m<md-cb-first-line><md-cb-line-body> ~
                         [~] $m<md-cb-line>.map: { ~ $_<md-cb-line-body> }
             $m.make( self.makeNode( "CodeblockStd", :$indent, :$value ) );
         }
 
-        method md-codeblock-fenced ( $m ) {
+        method md-codeblock:sym<fenced> ( $m ) {
             my %cb-params = value => [~] $m<md-cb-line>.map: { ~ $_<md-cb-line-body> };
 
             %cb-params<language> = ~$_ with $m<md-cb-language>;
@@ -682,7 +729,7 @@ module ManulC::Parser::MD {
 
             for $m.caps -> $mcap {
                 given $mcap.key {
-                    when 'md-li-paragraph' | 'md-sublist' | 'md-code-block' {
+                    when 'md-li-paragraph' | 'md-sublist' | 'md-codeblock' {
                         $li-item.push($mcap.value.ast);
                     }
                     when 'md-li-item-spacer' {
@@ -724,11 +771,7 @@ module ManulC::Parser::MD {
             );
         }
 
-        method md-link ( $m ) {
-            $m.make( ( $m<md-link-adhoc> // $m<md-link-reference> ).ast );
-        }
-
-        method md-link-adhoc ($m) {
+        method md-link:sym<adhoc> ( $m ) {
             my %link-attrs;
 
             %link-attrs<text> = $m<md-link-text>.ast;
@@ -740,7 +783,7 @@ module ManulC::Parser::MD {
             $m.make( $link );
         }
 
-        method md-link-reference ( $m ) {
+        method md-link:sym<reference> ( $m ) {
             my %link-attrs;
 
             %link-attrs<text> = self.makeNode( "LinkText", content => [ ~( $m<md-link-text> // $m<md-linkdef-id> ) ] );
@@ -753,7 +796,7 @@ module ManulC::Parser::MD {
         }
 
         method md-autolink ( $m ) {
-            $m.make( self.makeNode( 'Autolink', value => ( $m<md-addr-email> // $m<md-addr-url> ).ast ) );
+            $m.make( self.makeNode( 'Autolink', value => $m<md-addr>.ast ) );
         }
 
         method md-linkdef-addr ( $m ) {
@@ -762,7 +805,7 @@ module ManulC::Parser::MD {
             with $m<md-linkdef-addr-value> {
                 $addr = self.makeNode( 'PlainStr', value => ~$_ );
             } 
-            with $m<md-autolink> || $m<md-addr-url> || $m<md-addr-email> {
+            with $m<md-autolink> || $m<md-addr> {
                 $addr = .ast;
             }
 
@@ -788,12 +831,40 @@ module ManulC::Parser::MD {
             $m.make( self.makeNode( 'Image', link => $m<md-link>.ast ) );
         }
 
+        method md-attributes ( $m ) {
+            my $attrs = self.makeNode( 'Attributes' );
+            $attrs.push: .ast for $m<md-attribute>;
+            $m.make( $attrs );
+        }
+
+        method md-attribute:sym<class> ( $m ) {
+            $m.make( self.makeNode( 'AttributeClass', value => ~$m<md-attr-class> ) );
+        }
+
+        method md-attribute:sym<id> ( $m ) {
+            $m.make( self.makeNode( 'AttributeId', value => ~$m<md-attr-id> ) );
+        }
+
+        method md-attribute:sym<keyval> ( $m ) {
+            my %qparam;
+            %qparam<quote> = ~$_ with $m<md-attr-val><mdHTMLValQuot>;
+            $m.make( 
+                self.makeNode(
+                    'AttributeKeyval', 
+                    key => ~$m<md-attr-key>, 
+                    value => ~$m<md-attr-val><mdHTMLValue>,
+                    |%qparam
+                )
+            );
+        }
+
         #method ws ($m) {
         #    $*md-line++ if ~$m ~~ m/\n/;
         #}
 
         # Simple nodes where it is enough to use string part of the match
         multi method addNode(Str $name, $m ) {
+            #note "ADDNODE<$name>:", $m;
             my $node = self.makeNode( $name );
             unless ($!containerClass) {
                 $!containerClass = ::( self.type2class( "Container" ) );

@@ -167,8 +167,22 @@ Second Level
             text => q{
 # First Level Hashed
             },
-            name => 'hashed first level',
+            name => 'ATX first level',
             struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdHead.new(level => 1, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First Level Hashed", type => "PlainStr")], type => "Line")], type => "Head"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        {
+            text => q{
+## Second Level Hashed ##
+            },
+            name => 'ATX second level, hash-terminated',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdHead.new(level => 2, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second Level Hashed", type => "PlainStr")], type => "Line")], type => "Head"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
+        },
+        {
+            text => q{
+## Second Level ## Hashed
+            },
+            name => 'ATX second level, contains hashes',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdHead.new(level => 2, attributes => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Second Level ## Hashed", type => "PlainStr")], type => "Line")], type => "Head"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
         },
         ;
 
@@ -185,14 +199,6 @@ Second Level
 
 subtest "Invalid Headings" => {
     my @tests = 
-        {
-            text => q{
-First Level
-==========
-            },
-            name => 'unmatched underline length',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "First Level\n==========", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "            ", type => "BlankSpace")], type => "Doc"),
-        },
         {
             text => q{
 Second Level

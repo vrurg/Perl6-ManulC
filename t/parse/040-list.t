@@ -239,6 +239,7 @@ subtest "With code block", {
 + Item 3};
 
     $res = MDParse( $text, :rule('md-list') );
+    #diag $res.gist;
     ok so $res, "list with code block";
     is-deeply
         $res.ast,

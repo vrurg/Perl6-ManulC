@@ -3,6 +3,7 @@ module ManulC::Parser::HTML {
     use Grammar::Tracer;
 
     our %namedChars;
+    our $*html-nonval-chars is export = rx/\W & \w/;
 
     role HTML-Entity is export {
         token mdHTMLEntity {
@@ -44,6 +45,7 @@ module ManulC::Parser::HTML {
         }
 
         rule mdHTMLAttribute {
+            :my $*html-nonval-chars;
             <mdHTMLAttrName> [ 
                 '=' 
                 [ 
@@ -53,16 +55,22 @@ module ManulC::Parser::HTML {
         }
 
         proto token mdHTMLAttrVal { * }
+        # $*html-nonval-chars adds another delimiter for out-of HTML tag use. For example, in a Markdown attribute block
+        # it would define '}' as an additional delimiter. For quoted values it is irrelevant and must contain a value
+        # that matches nothing.
         token mdHTMLAttrVal:sym<squoted> { # signle-quoted
-            :my $*value-chars = q{<[']>};
-            \' ~ \' <mdHTMLValue>
+            :my $*value-chars = rx{<[']>};
+            :temp $*html-nonval-chars = rx{ \W & \w };
+            $<mdHTMLValQuot>=\' ~ \' <mdHTMLValue>
         }
         token mdHTMLAttrVal:sym<dquoted> { # double-quoted
-            :my $*value-chars = q{<["]>};
-            \" ~ \" <mdHTMLValue>
+            :my $*value-chars = rx{<["]>};
+            :temp $*html-nonval-chars = rx{ \W & \w };
+            $<mdHTMLValQuot>=\" ~ \" <mdHTMLValue>
         }
         token mdHTMLAttrVal:sym<unquoted> {
-            :my $*value-chars = q{<[\s"'=<>`]>};
+            :my $*value-chars = rx{<[\s"'=<>`]>};
+            :temp $*html-nonval-chars //= rx{ \W & \w };
             <!after <['"]>> <mdHTMLValue> 
         }
 
@@ -70,7 +78,7 @@ module ManulC::Parser::HTML {
             [ <mdHTMLCharText>+ %% <mdHTMLEntity> ]
         }
         token mdHTMLCharText {
-            .*? <?before <$*value-chars> || <mdHTMLEntity>> 
+            .*? <?before $($*value-chars) || $($*html-nonval-chars) || <mdHTMLEntity>> 
         }
     }
 
