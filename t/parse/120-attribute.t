@@ -3,15 +3,12 @@ use v6;
 no precompilation;
 use Grammar::Tracer;
 )
+use lib q<./build-tools/lib>;
 use Test;
+use MCTest;
 use ManulC::Parser::MD;
 
 plan 2;
-
-my Int $*md-indent-width;
-my Regex $*md-quotable;
-my Regex $*md-line-end;
-my Bool %*md-line-elems;
 
 subtest "Valid" => {
     my @tests = 
@@ -28,25 +25,16 @@ subtest "Valid" => {
         {
             text => q<{key=value}>,
             name => 'attributes with only key/value',
-            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", quote => Str, value => "value", type => "AttributeKeyval")), type => "Attributes"),
+            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", quote => "", value => "value", type => "AttributeKeyval")), type => "Attributes"),
         },
         {
             text => q<{#id .class key1='value1' key2="val'ue2" key=value}>,
             name => 'attributes with all elements',
-            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key1", quote => "'", value => "value1", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key2", quote => "\"", value => "val'ue2", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", quote => Str, value => "value", type => "AttributeKeyval")), type => "Attributes"),
+            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key1", quote => "'", value => "value1", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key2", quote => "\"", value => "val'ue2", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", quote => "", value => "value", type => "AttributeKeyval")), type => "Attributes"),
         },
         ;
 
-    plan 2 * @tests.elems;
-
-    for @tests -> $test {
-        Markdown::prepare-globals;
-        my $res = MDParse( $test<text>, rule => 'md-attributes' );
-        #diag $res.gist;
-        ok so $res, $test<name>;
-        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
-        #note $res.ast.perl;
-    }
+    md-test-structure( @tests, :rule('md-attributes') );
 }
 
 subtest "Embedding" => {
@@ -82,17 +70,7 @@ subtest "Embedding" => {
         },
         ;
 
-    plan 2 * @tests.elems;
-
-    for @tests -> $test {
-        Markdown::prepare-globals;
-        my $res = MDParse( $test<text> );
-        #diag $res.gist;
-        #diag $res.ast.dump;
-        ok so $res, $test<name>;
-        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
-        #note $res.ast.perl;
-    }
+    md-test-structure( @tests );
 }
 
 done-testing;
