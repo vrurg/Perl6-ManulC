@@ -18,22 +18,22 @@ subtest "Valid" => {
         {
             text => q<{#anchor}>,
             name => 'attributes with only id',
-            struct => ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId")], type => "Attributes"),
+            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId")), type => "Attributes"),
         },
         {
             text => q<{.class}>,
             name => 'attributes with only class',
-            struct => ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")], type => "Attributes"),
+            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")), type => "Attributes"),
         },
         {
             text => q<{key=value}>,
             name => 'attributes with only key/value',
-            struct => ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", value => "value", type => "AttributeKeyval")], type => "Attributes"),
+            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", quote => Str, value => "value", type => "AttributeKeyval")), type => "Attributes"),
         },
         {
             text => q<{#id .class key1='value1' key2="val'ue2" key=value}>,
             name => 'attributes with all elements',
-            struct => ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key1", quote => "'", value => "value1", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key2", quote => "\"", value => "val'ue2", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", quote => Str, value => "value", type => "AttributeKeyval")], type => "Attributes"),
+            struct => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key1", quote => "'", value => "value1", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key2", quote => "\"", value => "val'ue2", type => "AttributeKeyval"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "key", quote => Str, value => "value", type => "AttributeKeyval")), type => "Attributes"),
         },
         ;
 
@@ -56,14 +56,14 @@ subtest "Embedding" => {
                         # ATX heading {#anchor .class}
                         HEAD
             name => 'ATX header',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdHead.new(level => 1, attributes => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "ATX heading ", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")], type => "Attributes")], type => "Head")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdHead.new(level => 1, attributes => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "ATX heading ", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")), type => "Attributes")], type => "Head")], type => "Doc"),
         },
         {
             text => q:to/HEAD/,
                         ## ATX heading2 ## {#anchor .class}
                         HEAD
             name => 'ATX header, hash terminated',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdHead.new(level => 2, attributes => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "ATX heading2", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")], type => "Attributes")], type => "Head")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdHead.new(level => 2, attributes => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "ATX heading2", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")), type => "Attributes")], type => "Head")], type => "Doc"),
         },
         {
             text => q:to/HEAD/,
@@ -71,14 +71,14 @@ subtest "Embedding" => {
                         ---
                         HEAD
             name => 'Setext header, hash terminated',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdHead.new(level => 2, attributes => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Setext heading ", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeId.new(value => "setext", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "setext-class", type => "AttributeClass")], type => "Attributes")], type => "Head")], type => "Doc")
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdHead.new(level => 2, attributes => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Setext heading ", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "setext", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "setext-class", type => "AttributeClass")), type => "Attributes")], type => "Head")], type => "Doc"),
         },
         {
             text => q:to/HEAD/,
                         A paragraph {.class #id mykey="my value"} with attributes.
                         HEAD
             name => 'paragraph',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdAttributes.new(content => [ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "mykey", quote => "\"", value => "my value", type => "AttributeKeyval")], type => "Attributes"), ManulC::Parser::MD::MdPlainStr.new(value => " with attributes.", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "mykey", quote => "\"", value => "my value", type => "AttributeKeyval")), type => "Attributes"), ManulC::Parser::MD::MdPlainStr.new(value => " with attributes.", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
         },
         ;
 

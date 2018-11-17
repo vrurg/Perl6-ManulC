@@ -555,7 +555,6 @@ module ManulC::Parser::MD {
 
     class MdAddrEmail           is MdPlainStr       is export { }
     class MdAddrUrl             is MdPlainStr       is export { }
-    class MdAttributes          is MdContainer      is export { }
     class MdAttributeClass      is MdPlainStr       is export { }
     class MdAttributeId         is MdPlainStr       is export { }
     class MdAutolink            is MdPlainData      is export { }
@@ -568,6 +567,10 @@ module ManulC::Parser::MD {
     class MdSublist             is MdList           is export { }
     class MdLiItemSpacer        is MdPlainStr       is export { }
     class MdLinkdefAddr         is MdPlainData      is export { }
+
+    class MdAttributes is MdEntity is export {
+        has MdEntity @.attrs;
+    }
 
     class MdHead is MdContainer is export {
         has $.level is required;
@@ -833,7 +836,7 @@ module ManulC::Parser::MD {
 
         method md-attributes ( $m ) {
             my $attrs = self.makeNode( 'Attributes' );
-            $attrs.push: .ast for $m<md-attribute>;
+            $attrs.attrs.push: .ast for $m<md-attribute>;
             $m.make( $attrs );
         }
 
