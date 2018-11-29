@@ -1,8 +1,6 @@
 use v6.c;
-#`«
-no precompilation;
-use Grammar::Tracer;
-»
+# no precompilation;
+# use Grammar::Tracer;
 
 module ManulC::Parser::MD {
     use ManulC::Parser::HTML;
@@ -10,7 +8,7 @@ module ManulC::Parser::MD {
     grammar Markdown is export {
         also does HTML-Tag;
 
-        enum LineElements <html code attributes autolink link emphasis chr-escaped chr-special link-definition>;
+        enum LineElements <html verbatim attributes autolink link image emphasis chr-escaped chr-special>;
 
         my sub set-line-elements ( *%elems ) {
             %*md-line-elems{$_} = so %elems{$_} for %elems.keys;
@@ -19,8 +17,12 @@ module ManulC::Parser::MD {
         my multi sub only-line-elements ( *@elems ) {
             samewith( @elems );
         }
+
         my multi sub only-line-elements ( @elems ) {
-            my %values = @elems.map: { $_ => True };
+            my %values = @elems.map: {
+                die "Internal: unknown markdown line element '$_'" unless LineElements::{$_}:exists;
+                $_ => True
+            };
             %*md-line-elems = LineElements::.keys.map: { $_ => %values{ $_ } // False };
         }
 
@@ -30,14 +32,15 @@ module ManulC::Parser::MD {
 
         our sub prepare-globals {
             $*md-indent-width = 4;
-            $*md-quotable = rx/\W/;
-            $*md-line-end = rx/<.md-eol>/;
+            $*md-line-prefix = '';
+            $*md-quotable     = rx/\W/;
+            $*md-line-end     = rx/<.md-eol>/;
             all-line-elements;
         }
 
         rule TOP {
-            #:my Int $*md-line = 1;
             :my Int $*md-indent-width;
+            :my Str $*md-line-prefix;
             :my Regex $*md-quotable;
             :my $*md-line-end;
             :my Bool %*md-line-elems;
@@ -48,16 +51,14 @@ module ManulC::Parser::MD {
         token md-doc {
             ^$
             || [
-                <md-blank-space>
-                || [
-                    <md-header>
+                    <md-blank-space>
+                    || <md-header>
                     || <md-hrule>
                     || <md-linkdef-paragraph>
                     || <md-list>
                     || <md-codeblock>
                     || <md-blockquote>
                     || <md-paragraph>
-                ]+ %% <md-blank-space>
             ]+
         }
 
@@ -66,25 +67,25 @@ module ManulC::Parser::MD {
         }
 
         token md-blank-line {
-            ^^ \h* <md-nl>
+            ^^ \h* <.md-eol>
         }
 
         token md-html-elem {
-            <mdHTMLTag> || <mdHTMLEntity>
+            <mdHTMLTag> || <mdHTMLEntity> || <mdHTMLComment>
         }
 
         token md-line {
-            [ 
-                   [ <md-chr-escaped>     <?{ %*md-line-elems<chr-escaped> }> ]
-                || [ <md-attributes>      <?{ %*md-line-elems<attributes> }>  ]
-                || [ <md-autolink>        <?{ %*md-line-elems<autolink> }>    ]
-                || [ <md-html-elem>       <?{ %*md-line-elems<html> }>        ]
-                || [ <md-code-inline>     <?{ %*md-line-elems<code> }>        ]
-                || [ <md-link>            <?{ %*md-line-elems<link> }>        ]
-                || [ <md-link-definition> <?{ %*md-line-elems<link-definition> }> ]
-                || [ <md-emphasis>        <?{ %*md-line-elems<emphasis> }>    ]
-                || [ <md-chr-special>     <?{ %*md-line-elems<chr-special> }> ]
-                || <md-plain-str(rx/   
+            [
+                   [ <md-chr-escaped>     <?{ %*md-line-elems<chr-escaped> }>     ]
+                || [ <md-attributes>      <?{ %*md-line-elems<attributes> }>      ]
+                || [ <md-autolink>        <?{ %*md-line-elems<autolink> }>        ]
+                || [ <md-html-elem>       <?{ %*md-line-elems<html> }>            ]
+                || [ <md-verbatim>        <?{ %*md-line-elems<verbatim> }>        ]
+                || [ <md-image>           <?{ %*md-line-elems<image> }>           ]
+                || [ <md-link>            <?{ %*md-line-elems<link> }>            ]
+                || [ <md-emphasis>        <?{ %*md-line-elems<emphasis> }>        ]
+                || [ <md-chr-special>     <?{ %*md-line-elems<chr-special> }>     ]
+                || <md-plain-str(rx/
                                     [ <md-chr-escaped> <?{ %*md-line-elems<chr-escaped> }> ]
                                     || [ <md-chr-special> <?{ %*md-line-elems<chr-special> }> ]
                                     || $($*md-line-end)
@@ -112,7 +113,7 @@ module ManulC::Parser::MD {
             \\ $<md-escaped-chr>=$($*md-quotable)
         }
         token md-chr-special { <[&<>_*`(){}[\]]> }
-        token md-plain-str ($str-end) { [ <!before $($str-end)> . ]+ }
+        token md-plain-str ( $str-end ) { [ <!before $($str-end)> . ]+ }
 
         proto token md-addr {*}
         token md-addr:sym<url> {
@@ -144,9 +145,9 @@ module ManulC::Parser::MD {
         # - nested links are not allowed
         # - ']' is serving as EOL
         # - empty line is not allowed
-        token md-link-text { 
+        token md-link-text {
             :temp %*md-line-elems;
-            { set-line-elements( :!link, :!autolink, :!link-definition ) }
+            { set-line-elements( :!link, :!autolink, :!link-definition, :!image ) }
             :temp $*md-line-end = rx/ ']' /;
             <md-line>
         }
@@ -162,7 +163,7 @@ module ManulC::Parser::MD {
         token md-linkdef-addr {
             <md-autolink>
             || <md-addr>
-            || $<md-linkdef-addr-value>=\S+ 
+            || $<md-linkdef-addr-value>=\S+
         }
 
         token md-linkdef-title {
@@ -170,7 +171,8 @@ module ManulC::Parser::MD {
             :temp $*md-line-end;
             :temp %*md-line-elems;
             <["'(]> {
-                $ttl-closing = ~$/ eq '(' ?? ')' !! ~$/; 
+                my $q = ~$/;
+                $ttl-closing = $q eq '(' ?? rx{ ')' } !! rx{ $($q) };
                 $*md-line-end = $ttl-closing;
                 only-line-elements( <chr-escaped chr-special> );
             }
@@ -179,16 +181,18 @@ module ManulC::Parser::MD {
         }
 
         token md-link-definition {
-            ^^ $<md-ld-indent>=[\h ** {^$*md-indent-width}]
+            ^^ <md-align>
             [ '[' ~ ']' <md-linkdef-id> ] ':'
             \h+
             <md-linkdef-addr>
-            [ [\h* <.md-nl> $<md-ld-indent>]? \h+ <md-linkdef-title> ]?
+            [ [$<line-end>=\h* <md-eol> $<md-ld-indent>=<md-align>]? \h+ <md-linkdef-title> ]?
             \h* $$
         }
 
         token md-linkdef-paragraph {
-            <md-link-definition>+ % <md-nl> <md-nl>
+            <md-link-definition>+ % <md-eol>
+            <md-eol>
+            <md-blank-space>?
         }
 
         token md-image {
@@ -196,7 +200,7 @@ module ManulC::Parser::MD {
         }
 
         token md-emph-mark {
-            <[_*]> ** 1..2 <?before \S> 
+            <[_*]> ** 1..2 <?before \S>
         }
 
         token md-emphasis {
@@ -207,24 +211,6 @@ module ManulC::Parser::MD {
             :temp $*md-line-end = rx/<.md-eol> || [<?after \S> $($md-emph-mark)]/;
             <md-line>
             <?after \S> $($md-emph-mark)
-        }
-
-        token md-code-marker {
-            $<md-code-quote>='`' ** 1..2 $<md-code-space>=\s?
-        }
-
-        token md-code-inline {
-            :my $md-end-marker;
-            :temp %*md-line-elems;
-            :temp $*md-line-end;
-            { only-line-elements( <chr-special> ) }
-
-            <md-code-marker> { 
-                $md-end-marker = $/<md-code-marker><md-code-space> ~ $/<md-code-marker><md-code-quote>; 
-                $*md-line-end = $md-end-marker; 
-            } 
-            <md-line>
-            $($md-end-marker)
         }
 
         token md-link-addr {
@@ -246,7 +232,7 @@ module ManulC::Parser::MD {
 
         token md-header {
             :temp %*md-line-elems;
-            { only-line-elements( <html attributes code link emphasis chr-escaped chr-special> ) }
+            { only-line-elements( <html attributes verbatim link image emphasis chr-escaped chr-special> ) }
             <md-head>
         }
 
@@ -255,16 +241,16 @@ module ManulC::Parser::MD {
         token md-head:sym<atx> {
             :temp $*md-line-end;
             ^^
-            $<md-hlevel>=[ '#' ** 1..6 ] { 
+            $<md-hlevel>=[ '#' ** 1..6 ] {
                 $*md-line-end = rx{
                     [ \h+ '#'+ \h* ]? <md-attributes>? <.md-eol>
                 } # rx end
-            } 
-            \h+ 
-            <md-line> 
-            [ \h+ '#'+ \h* ]? 
+            }
+            \h+
+            <md-line>
+            [ \h+ '#'+ \h* ]?
             <md-attributes>?
-            <md-nl>
+            <md-eol>
         }
 
         token md-head:sym<setext> {
@@ -273,31 +259,29 @@ module ManulC::Parser::MD {
             # Do a fast check-up first because otherwise this rule is tested against every other entity in the document
             # and md-line is parsed repeatedly for each invocation. This is why I hated setext-styled headings since the
             # beginning...
-            [ \N+ <md-nl> [ '='+ || '-'+ ] <md-nl> ] 
+            [ \N+ <md-eol> [ '='+ || '-'+ ] <md-eol> ]
             &&
             [
                 { $*md-line-end = rx{ <.md-attributes>? <.md-eol> }; }
-                <md-line> \h* <md-attributes>? \h* <md-nl>
-                [ 
+                <md-line> \h* <md-attributes>? \h* <md-eol>
+                [
                     $<md-hlevel-first>=[ '='+ ]
                     || $<md-hlevel=second>=[ '-'+ ]
                 ]
-                <md-nl>
+                <md-eol>
             ]
         }
 
         token md-hrule {
-            ^^ \h* $<md-hr-sym>=<[*_-]> $<md-hr-delim>=[ \h* ] {} $<md-hr-sym> ** 2..* % $<md-hr-delim> \h* <md-nl>
+            ^^ \h* $<md-hr-sym>=<[*_-]> $<md-hr-delim>=[ \h* ] {} $<md-hr-sym> ** 2..* % $<md-hr-delim> \h* <md-eol>
         }
 
-        token md-paragraph {
-            #<md-para-body( rx/<.md-eol> [ <.md-blank-space> || $ ]/ )> <md-nl> 
-            :temp $*md-line-end = rx/<.md-eol> [ <.md-blank-space> || $ ]/;
-             <md-line> <md-nl> 
-        }
-
-        token md-para-body ( $paraEnd ) {
-            <md-line>+? % <md-nl> <?before $($paraEnd) || $>
+        token md-paragraph ( Regex :$line-end?, Regex :$before = rx{ <?after .> } ) {
+            :temp $*md-line-end = $line-end // rx/<.md-eol> [ <.md-blank-space> || <md-cb-fence-start> || $ ]/;
+             <md-line>
+             <md-eol>
+             [ <md-blank-space> || $ ]
+             <?before $($before)>
         }
 
         token md-blockquote {
@@ -314,14 +298,14 @@ module ManulC::Parser::MD {
         }
 
         token md-bq-line {
-            ^^ '>' [
-                $<md-bq-line-body>=<md-nl>
-                || ' ' $<md-bq-line-body>=[
-                    .*? [
-                        <md-nl> <?before <.md-eol> || ['>' [ ' ' || <.md-eol>]]>
-                    ]
-                ]
+            <md-bq-starter>
+            $<md-bq-line-body>=[
+                .*? <md-eol> <?before <.md-eol> || <.md-bq-starter>>
             ]
+        }
+
+        token md-bq-starter {
+            ^^ <md-align> '>' ' '?
         }
 
         proto token md-codeblock {*}
@@ -330,17 +314,18 @@ module ManulC::Parser::MD {
         token md-codeblock:sym<std> {
             :my $*md-cb-prefix;
             <md-cb-first-line>
-            <md-cb-line>* 
+            <md-cb-line>*
         }
 
         token md-codeblock:sym<fenced> {
             :my $*md-cb-prefix;
             :my ( $*md-cb-fence-length, $*md-cb-fence-char );
-            ^^ ' '* { $*md-cb-prefix = ~$/ } <md-cb-fence> 
-               [ $<md-cb-language>=\S+ ]? 
-               [ <md-nl> || \s $<md-cb-comment>=\N*? <md-nl> ]
+
+            ^^ <md-cb-fence> { $*md-cb-prefix = ~($/<md-cb-fence><md-cb-fence-start><md-align>) }
+                [ $<md-cb-language>=\S+ ]?
+                [ <md-eol> || \s $<md-cb-comment>=\N*? <md-eol> ]
             <md-cb-line>*?
-            ^^ $($*md-cb-prefix) $($*md-cb-fence-char) ** {$*md-cb-fence-length..Inf} <md-nl>
+            ^^ $($*md-cb-prefix) $($*md-cb-fence-char) ** {$*md-cb-fence-length..Inf} <md-eol>
         }
 
         token md-cb-first-line {
@@ -352,110 +337,170 @@ module ManulC::Parser::MD {
         }
 
         token md-cb-line-body {
-            \N+ <md-nl>
+            \N+ <md-eol>
         }
 
         # Fenced code block defined with ` or ~ and language name support
+        token md-cb-fence-start {
+            <md-align> $<md-cb-fence-line>=[ '`' ** 3..* || '~' ** 3..* ]
+        }
+
         token md-cb-fence {
-            [ '`' ** 3..* || '~' ** 3..* ] {
-                $*md-cb-fence-char =  $/.substr( 0, 1 );
-                $*md-cb-fence-length = $/.chars;
+            <md-cb-fence-start>
+            {
+                with $/<md-cb-fence-start><md-cb-fence-line> {
+                    $*md-cb-fence-char =   .substr( 0, 1 );
+                    $*md-cb-fence-length = .chars;
+                }
             }
         }
 
-        my $li-bullet-start = q{<[*+-]>};
-        my $li-num-start = q{\d+ '.' [ [\d+]* % '.' ]};
-        token md-list {
-            :my Str $*md-li-starter;
-            <md-li-first-start($*md-li-starter)> <md-li-item>+ % <md-li-delimiter> <md-nl>
+        token md-code-marker {
+            $<md-code-quote>='`' ** 1..2 $<md-code-space>=' '?
         }
 
-        token md-li-first-start (Str $li-starter is rw) {
-            [
-                && <?before
-                    <md-li-indent>
-                        [
-                            <$li-bullet-start> { $li-starter = $li-bullet-start }
-                            || <$li-num-start> { $li-starter = $li-num-start }
-                        ]
-                   >
-            ]
+        # For code inlined into other elements (md-line primarily)
+        token md-verbatim {
+            :my $md-end-marker;
+            :temp %*md-line-elems;
+            :temp $*md-line-end;
+            { only-line-elements( <chr-special> ) }
+
+            <md-code-marker> {
+                $md-end-marker = $/<md-code-marker><md-code-space> ~ $/<md-code-marker><md-code-quote>;
+                $*md-line-end = $md-end-marker;
+            }
+            <md-line>
+            $($md-end-marker)
+        }
+
+        my $li-num-start = q{\d+ '.' [ [\d+]* % '.' ]};
+        token md-list {
+            :my $*md-li-starter;
+            <md-li-item>+
         }
 
         token md-li-item {
-            <md-li-item-start> \h+? <md-li-paragraph>
+            :my $*md-li-item-loose;
+            :my $*md-li-indent-align;
+            :my $line-prefix = $*md-line-prefix;
+            :my Bool $first-line = True;
+
+            <md-li-item-start>
+            {
+                $*md-li-indent-align = $/<md-li-item-start>.chars;
+            }
+
+            # A paragraph within list must precede another item of the same or a nested list; or another paragraph of this very item.
+            # In any other case this is not a paragraph but an item text element.
+            :my $para-before = rx{
+                [ $($line-prefix) ' ' ** {^$*md-indent-width} <.md-li-item-starter> ]
+                || [ ' ' ** {$*md-li-indent-align} \h* \S ]
+            };
+
+            # A paragraph line must end before either a fenced code block, or any list item, or a paragraph not belonging to the current item.
+            :my $para-end = rx/ <.md-eol>
+                                        [
+                                            [ # Before any new list item. Too indented ones are ignored and treated as continuation lines.
+                                                <.md-blank-space>?
+                                                ' ' ** { ^( $*md-li-indent-align + $*md-indent-width ) }
+                                                <.md-li-item-starter( :any )>
+                                            ]
+                                            || [ # Any paragraph starting after a blank space and not too indented
+                                                <.md-blank-space>
+                                                ' ' ** { ^( $*md-li-indent-align + $*md-indent-width ) } \S
+                                            ]
+                                            || <.md-cb-fence-start>
+                                        ]
+                                    /;
+
+            :temp $*md-line-prefix = "";
+
+            #<md-li-item-body( ' ' x $*md-li-indent-align )>
             [
-                $<md-li-item-spacer>=[ <md-nl> <md-blank-space>? ] <!before <.md-li-item-start>>
-                    [
-                        <md-sublist>
-                        || <md-codeblock>
-                        || \h <md-li-paragraph>
+                [
+                    <md-linkdef-paragraph>
+                    || <md-list>
+                    || <md-codeblock>
+                    || <md-blockquote>
+                    || <md-align> [
+                        <md-paragraph( :line-end($para-end), :before($para-before) )>
+                        || <md-li-item-text>
                     ]
-            ]*
+                ]
+                [ <md-blank-space> <?before $($para-before)>]?
+                {
+                    if $first-line {
+                        $first-line = False;
+                        $*md-line-prefix = ' ' x $*md-li-indent-align;
+                    }
+                }
+            ]+
         }
 
-        token md-li-paragraph {
-            <md-li-indent> <md-para-body( rx/<.md-li-para-end>/ )>
-        }
-
-        token md-li-para-end {
-            :my Str $li-starter; # Stub for md-li-first-start token
-            <.md-eol> [ <.md-blank-space> || <.md-li-item-start> || $ ]
+        # Similar to paragraph but when it isn't; i.e. when not followed by a blank space.
+        token md-li-item-text {
+            :temp $*md-line-end = rx/ <.md-eol>
+                                        [
+                                            ' ' ** {^($*md-li-indent-align + $*md-indent-width)}
+                                            <.md-li-item-starter( :any )> ' '
+                                            || <md-cb-fence-start>
+                                            || <.md-eol>
+                                        ]
+                                    /;
+            <md-line> <md-eol>
         }
 
         token md-li-item-start {
-            ^^ <md-li-indent> $<md-li-item-starter>=<$*md-li-starter>
+            ^^ <md-align> <md-li-item-starter> $<spacing>=' '+? <?before <.md-indent>* [ \S || <.md-eol> ]>
         }
 
-        token md-li-indent {
-            ' ' ** {^$*md-indent-width}
+        token md-li-item-starter ( Bool :$any = False ) {
+            :my $starter = (
+                $*md-li-starter.defined && !$any
+                ??
+                  $*md-li-starter
+                !!
+                  rx{ [
+                        <md-li-bullet-start>         { $*md-li-starter //= rx/ <md-li-bullet-start> /      }
+                        || <md-li-num-dot-start>     { $*md-li-starter //= rx/ <md-li-num-dot-start> /     }
+                        || <md-li-num-bracket-start> { $*md-li-starter //= rx/ <md-li-num-bracket-start> / }
+                        || <md-li-num-embrace-start> { $*md-li-starter //= rx/ <md-li-num-embrace-start> / }
+                      ] <?before ' '> } );
+
+            $<starter>=$($starter) # $<starter> is necessary because otherwise subtokens in $starter will be lost in resulting Match object.
         }
 
-        token md-li-delimiter {
-            <md-nl> <md-blank-space>? <?before <.md-li-item-start>>
+        token md-li-bullet-start {
+            $<symbol>=<[*+-]>
         }
 
-        token md-sublist {
-            :my Str $*md-sublist-starter;
-            [
-                [^^ && <?before <md-indent> <md-li-first-start($*md-sublist-starter)>> ]
-                <md-sublist-paragraph>+ % [ <md-nl> <md-blank-space> ]
-            ]
-            <?{ # Use boolean to fail sublist parsing if sublist is malformed.
-                my $m = $/;
-                my $sublist = [~] $m.caps.map( { 
-                    .key eq 'md-sublist-paragraph' ??
-                    [~] .value.caps.map( { .key ~~ /^ 'md-sublist-line' || 'md-nl' $/ ?? ~.value !! "" } )
-                    !!
-                    ~.value
-                });
-                self.WHAT.parse( $sublist, rule => "md-list", actions => self.actions.clone );
-                $m.make( $/ ) if $/;
-                so $/;
-            }>
+        token md-li-num-number {
+            \d+ || \#
         }
 
-        token md-sublist-paragraph {
-          [ ^^ <md-indent> <md-sublist-line> ]+ % <md-nl>
+        token md-li-num-dot-start {
+            <md-li-num-number> $<symbol>='.'
         }
 
-        token md-sublist-line {
-            <md-sublist-line-noblank>+? % <md-nl> <?before <.md-eol> [ <.md-indent> || <.md-blank-space> || <.md-li-item-start> ]>
+        token md-li-num-bracket-start {
+            <md-li-num-number> $<symbol>=')'
         }
 
-        token md-sublist-line-noblank {
-            \s* \S \N*
+        token md-li-num-embrace-start {
+            $<symbol>='(' ~ ')' <md-li-num-number>
         }
 
         token md-indent {
-            ' ' ** {$*md-indent-width}
+            $($*md-line-prefix) ' ' ** {$*md-indent-width}
+        }
+
+        token md-align {
+            $($*md-line-prefix) ' ' ** {^$*md-indent-width}
         }
 
         token md-eol {
             \n || $
-        }
-        token md-nl {
-            <.md-eol> # { ++$*md-line }
         }
 
         token ws {
@@ -477,12 +522,13 @@ module ManulC::Parser::MD {
             self.ast-dump( $level );
         }
 
-        method ast-dump ( Int $level --> Str ) { 
+        method ast-dump ( Int $level --> Str ) {
             self.dump-prefix( $level ) ~
             self.name ~ (
                 self.^can( "info-str" ) ?? " [" ~ self.info-str ~ "]" !! ""
             )
         }
+
     }
 
     class MdPlainData is MdEntity is export {
@@ -502,23 +548,72 @@ module ManulC::Parser::MD {
             @.content.push( $entity );
         }
 
+        method append( @elems ) {
+            @.content.append: @elems;
+        }
+
         method ast-dump ( Int $level --> Str ) {
             callsame() ~ "\n" ~ @.content.map( { .ast-dump( $level + 1 ) } ).join( "\n" )
         }
     }
 
-    class MdBlankSpace      is MdPlainData  is export { }
-    class MdChar            is MdPlainData  is export { }
-    class MdDoc             is MdContainer  is export { }
-    class MdPlainStr        is MdPlainData  is export { }
+    class MdBlankSpace          is MdPlainData      is export { }
+    class MdChar                is MdPlainData      is export { }
+    class MdDoc                 is MdContainer      is export { }
+    class MdPlainStr            is MdPlainData      is export { }
+    class MdLine                is MdContainer      is export { }
 
-    class MdBlockquote      is MdDoc        is export { }
-    class MdChrEscaped      is MdChar       is export { }
-    class MdChrSpecial      is MdChar       is export { }
-    class MdHtmlElem        is MdPlainData  is export { }
-    class MdParagraph       is MdContainer  is export { }
-    class MdList            is MdContainer  is export { }
-    class MdCodeBlock       is MdPlainData  is export { }
+    class MdBlockquote          is MdDoc            is export { }
+    class MdChrEscaped          is MdChar           is export { }
+    class MdChrSpecial          is MdChar           is export { }
+    class MdCodeBlock           is MdPlainData      is export { }
+    class MdHtmlElem            is MdPlainData      is export { }
+    class MdEol                 is MdPlainStr       is export { }
+    class MdParagraph           is MdContainer      is export { }
+    class MdList                is MdContainer      is export { }
+    class MdLiItemText          is MdLine           is export { }
+    class MdLiItemStarter       is MdPlainData      is export { }
+
+    class MdVerbatim is MdContainer is export {
+        has Str $.marker;
+        has Str $.space;
+
+        method info-str {
+            "code marker:«$.marker»" ~ ($.space ?? " with space" !! "")
+        }
+    }
+
+    class MdLiItemStart is MdPlainData is export {
+        has Str $.align is required;
+        has Str $.spacing is required;
+
+        method info-str {
+            $.value.info-str;
+        }
+    }
+
+    class MdLiBulletStart   is MdLiItemStarter  is export {
+        method info-str {
+            $.value;
+        }
+    }
+
+    class MdLiNumberStart is MdLiItemStarter is export {
+        has Str $.number is required;
+
+        method info-str {
+            $.number ~ $.value;
+        }
+    }
+
+    class MdLiNumDotStart     is MdLiNumberStart is export { }
+    class MdLiNumBracketStart is MdLiNumberStart is export { }
+
+    class MdLiNumEmbraceStart is MdLiNumberStart is export {
+        method info-str {
+            "({ $.number })"
+        }
+    }
 
     class MdCodeblockStd is MdCodeBlock is export {
         has Str $.indent;
@@ -530,16 +625,13 @@ module ManulC::Parser::MD {
     }
 
     class MdLiItem is MdContainer is export {
-        has Str $.starter;
+        has MdLiItemStart:D $.starter is required;
 
         method info-str {
-            return "starter({ $.starter })";
+            return "starter«{ $.starter.info-str }»";
         }
     }
 
-    class MdLiParagraph is MdParagraph is export {
-        has Str $.indent;
-    }
 
     class MdLinkAddr        is MdPlainData  is export { }
     class MdLinkText        is MdContainer  is export { }
@@ -549,7 +641,7 @@ module ManulC::Parser::MD {
         has MdLinkAddr $.addr is required;
 
         method ast-dump ( Int $level --> Str ) {
-            callsame() ~ $.addr.ast-dump( $level + 1 ) ~ "\n" ~ $.text.ast-dump( $level + 1 )
+            callsame() ~ "\n" ~ $.addr.ast-dump( $level + 1 ) ~ "\n" ~ $.text.ast-dump( $level + 1 )
         }
     }
 
@@ -558,15 +650,15 @@ module ManulC::Parser::MD {
     class MdAttributeClass      is MdPlainStr       is export { }
     class MdAttributeId         is MdPlainStr       is export { }
     class MdAutolink            is MdPlainData      is export { }
-    class MdLine                is MdContainer      is export { }
+    class MdLiDelimiter         is MdPlainStr       is export { }
     class MdLinkAddrTitle       is MdContainer      is export { }
     class MdLinkReference       is MdLink           is export { }
+    class MdLinkdefAddr         is MdPlainData      is export { }
     class MdLinkdefId           is MdPlainStr       is export { }
-    class MdLinkdefParagraph    is MdContainer      is export { } 
+    class MdLinkdefParagraph    is MdContainer      is export { }
+    class MdLinkdefTitle        is MdLine           is export { }
     class MdSpecialChr          is MdPlainData      is export { }
     class MdSublist             is MdList           is export { }
-    class MdLiItemSpacer        is MdPlainStr       is export { }
-    class MdLinkdefAddr         is MdPlainData      is export { }
 
     class MdAttributes is MdEntity is export {
         has MdEntity @.attrs;
@@ -583,8 +675,8 @@ module ManulC::Parser::MD {
     }
 
     class MdAttributeKeyval is MdPlainData is export {
-        has Str $.key;
-        has Str $.quote;
+        has Str $.key is required;
+        has Str $.quote = "";
 
         method info-str {
             my $qinf = "";
@@ -598,13 +690,17 @@ module ManulC::Parser::MD {
 
         method ast-dump ( Int $level --> Str ) {
             my $title-dump = $.title.defined ??  "\n" ~ $.title.ast-dump( $level + 1 ) !! "";
-                    
+
             callsame() ~ $title-dump;
         }
     }
 
     class MdImage is MdEntity is export {
         has MdLink $.link is required;
+
+        method ast-dump ( Int $level --> Str ) {
+            callsame() ~ "\n" ~ $.link.ast-dump( $level + 1 )
+        }
     }
 
     class MdLinkDefinition is MdEntity is export {
@@ -615,7 +711,7 @@ module ManulC::Parser::MD {
 
         method ast-dump ( Int $level --> Str ) {
             callsame()
-                ~ "[$.id]\n" 
+                ~ "[$.id]\n"
                 ~ $.addr.ast-dump( $level + 1 )
                 ~ ( $.title ?? "\n" ~ $.title.ast-dump( $level + 1 ) !! "" );
         }
@@ -660,7 +756,7 @@ module ManulC::Parser::MD {
                 %rule2class{$rule} = { :$class, :$type };
                 #say "No class for $type" unless $class;
             }
-            return Nil unless $class;
+            fail "No class for node '$type'" unless $class;
             return ::($class).new( :$type, |objParams );
         }
 
@@ -713,51 +809,74 @@ module ManulC::Parser::MD {
             )
         }
 
-        method md-sublist ($m) {
-            # copy items from parsed sublist body.
-            my $sublist = self.makeNode( "Sublist", content => $m.ast.ast.content );
-            #$sublist.push( $m.ast.ast );
-            $m.make( $sublist );
+        method md-verbatim ( $m ) {
+            $m.make(
+                self.makeNode(
+                        'Verbatim',
+                        content => $m<md-line>.ast.content,
+                        marker  => ~$m<md-code-marker><md-code-quote>,
+                        spacing => ~$m<md-code-marker><md-code-space>,
+                )
+            );
         }
 
         method md-list ($m) {
-            my $list = self.makeNode("List");
-            $m<md-li-item>.map: { $list.push( .ast ) };
+            my $list = self.makeNode("List" );
+            for $m.caps {
+                $list.push( .value.ast )
+            }
             $m.make( $list );
         }
 
         method md-li-item ($m) {
-            my $starter = ~$m<md-li-item-start><md-li-item-starter>;
+            my $starter = $m<md-li-item-start>.ast;
             my $li-item = self.makeNode( "LiItem", :$starter );
 
-            for $m.caps -> $mcap {
-                given $mcap.key {
-                    when 'md-li-paragraph' | 'md-sublist' | 'md-codeblock' {
-                        $li-item.push($mcap.value.ast);
-                    }
-                    when 'md-li-item-spacer' {
-                        $li-item.push(
-                            self.makeNode( 'LiItemSpacer', value => ~$mcap.value )
-                        )
-                    }
-                }
+            for $m.caps[1..*] -> $mcap {
+                next unless $mcap.value.ast;
+                $li-item.push: $mcap.value.ast;
             }
 
             $m.make( $li-item );
         }
 
-        method m2paragraph ($m, Str $type) {
-            my $node = self.makeNode( $type );
-            for $m<md-para-body>.caps -> $mcap {
-                $node.push( $mcap.value.ast // self.makeNode( "PlainData", value => ~$mcap.value ) );   
-            }
-            $node.push( self.makeNode( "PlainData", value => ~$m<md-nl> ) )
-                if $m<md-nl>;
-            $m.make( $node );
+        method md-li-item-start ( $m ) {
+            $m.make(
+                self.makeNode(
+                    'LiItemStart',
+                    value => $m<md-li-item-starter>.ast,
+                    align => ~$m<md-align>,
+                    spacing => ~$m<spacing>,
+                )
+            );
         }
 
-        method md-li-paragraph ( $m ) {
-            self.m2paragraph($m, "LiParagraph" );
+        method md-li-item-starter ( $m ) {
+            $m.make( $m<starter>.caps[0].value.ast );
+        }
+
+        method md-li-bullet-start ( $m ) {
+            $m.make( self.makeNode( 'LiBulletStart', value => ~$m<symbol> ) );
+        }
+
+        method makeNumStarter ( Str $rule, $m ) {
+            $m.make( self.makeNode( $rule, value => ~$m<symbol>, number => ~$m<md-li-num-number> ) );
+        }
+
+        method md-li-num-dot-start ( $m ) {
+            self.makeNumStarter( 'LiNumDotStart', $m );
+        }
+
+        method md-li-num-bracket-start ( $m ) {
+            self.makeNumStarter( 'LiNumBracketStart', $m );
+        }
+
+        method md-li-num-embrace-start ( $m ) {
+            self.makeNumStarter( 'LiNumEmbraceStart', $m );
+        }
+
+        method md-li-item-text ( $m ) {
+            $m.make( self.makeNode('LiItemText', content => $m<md-line>.ast.content ) );
         }
 
         method md-chr-escaped ($m) {
@@ -766,7 +885,7 @@ module ManulC::Parser::MD {
 
         method md-emphasis ( $m ) {
             $m.make(
-                self.makeNode( 
+                self.makeNode(
                     'Emphasis',
                     mark  => ~$m<md-emph-mark>,
                     value => $m<md-line>.ast,
@@ -789,9 +908,17 @@ module ManulC::Parser::MD {
         method md-link:sym<reference> ( $m ) {
             my %link-attrs;
 
-            %link-attrs<text> = self.makeNode( "LinkText", content => [ ~( $m<md-link-text> // $m<md-linkdef-id> ) ] );
+            my @text-content;
+            with $m<md-link-text> {
+                @text-content = $_<md-line>.ast.content;
+            }
+            else {
+                @text-content = [ $m<md-linkdef-id>.ast ];
+            }
+
+            %link-attrs<text> = self.makeNode( "LinkText", content => @text-content );
             %link-attrs<addr> = self.makeNode(
-                                    'LinkAddr', 
+                                    'LinkAddr',
                                     value => ~( $m<md-linkdef-id> // $m<md-link-text> ) );
 
             my $link = self.makeNode( "LinkReference", |%link-attrs );
@@ -803,11 +930,11 @@ module ManulC::Parser::MD {
         }
 
         method md-linkdef-addr ( $m ) {
-            my $addr; 
+            my $addr;
 
             with $m<md-linkdef-addr-value> {
                 $addr = self.makeNode( 'PlainStr', value => ~$_ );
-            } 
+            }
             with $m<md-autolink> || $m<md-addr> {
                 $addr = .ast;
             }
@@ -816,11 +943,16 @@ module ManulC::Parser::MD {
         }
 
         method md-linkdef-title ( $m ) {
-            $m.make( $m<md-line>.ast );
+            $m.make(
+                self.makeNode(
+                    'LinkdefTitle',
+                    content => $m<md-line>.ast.content,
+                )
+            );
         }
 
         method md-link-definition ( $m ) {
-            my %linkdef-attrs = 
+            my %linkdef-attrs =
                                 id   => ~$m<md-linkdef-id>,
                                 addr => $m<md-linkdef-addr>.ast;
 
@@ -851,10 +983,10 @@ module ManulC::Parser::MD {
         method md-attribute:sym<keyval> ( $m ) {
             my %qparam;
             %qparam<quote> = ~$_ with $m<md-attr-val><mdHTMLValQuot>;
-            $m.make( 
+            $m.make(
                 self.makeNode(
-                    'AttributeKeyval', 
-                    key => ~$m<md-attr-key>, 
+                    'AttributeKeyval',
+                    key => ~$m<md-attr-key>,
                     value => ~$m<md-attr-val><mdHTMLValue>,
                     |%qparam
                 )
@@ -875,13 +1007,20 @@ module ManulC::Parser::MD {
             }
             given ($node) {
                 when $!containerClass {
-                    #say "Creating container {$node.type}";
-                    for $m.chunks -> $m {
-                        #note "CONTAINER \{$name\} MATCH: {$m.key}::{$m.value} ", $m.value.perl;
-                        #say "!!!! ", $m.key unless $m.value.isa('Match');
-                        next unless $m.value.isa('Match');
-                        #note "Pushing onto container: ", $m.value.ast if $m.value.ast;
-                        $node.push( $m.value.ast // self.makeNode( "PlainData", value => ~$m.value ) );
+                    #note "Creating container {$node.type}";
+                    for $m.chunks -> $elem {
+                        # note "CONTAINER \{$name\} MATCH: {$elem.key}::{$elem.value}\n  -> ", $elem.value.perl;
+                        # note "!!!! ", $elem.key unless $elem.value.isa('Match');
+                        next unless $elem.value.isa('Match');
+                        # note "Pushing onto container: ", $elem.value.ast if $elem.value.ast;
+
+                        # Explode if there is a error. Most likely it would be a misspelled node or node class name
+                        # detected by makeNode method.
+                        if $elem.value.ast ~~ Failure {
+                            say $elem.value.ast;
+                        }
+
+                        $node.push( $elem.value.ast // self.makeNode( "PlainData", value => ~$elem.value ) );
                     }
                 }
                 when $!plainDataClass {
@@ -893,7 +1032,7 @@ module ManulC::Parser::MD {
         }
 
         multi method FALLBACK ( $name where /^md/, |c ) {
-            #note "FALLBACK($name) on ", $?CLASS.^name;
+            #note "FALLBACK($name)";
             $?CLASS.^add_method(
                 $name,
                 method ( |cap ) { self.addNode( $name, |cap ) }

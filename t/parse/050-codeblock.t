@@ -1,21 +1,22 @@
 use v6;
-#no precompilation;
-#use Grammar::Tracer;
+use lib q<./build-tools/lib>;
+use MCTest;
 use Test;
 use ManulC::Parser::MD;
 
 plan 2;
 
 my Int $*md-indent-width;
+my Str $*md-line-prefix;
 my Regex $*md-quotable;
 my Regex $*md-line-end;
 my Bool %*md-line-elems;
 
 subtest "Valid" => {
-    my @tests = 
+    my @tests =
         {
             text => q:to/CODE/,
-                    Start with a 
+                    Start with a
                     paragraph
 
                             Continue with
@@ -26,11 +27,11 @@ subtest "Valid" => {
                     paragraph...
                     CODE
             name => 'simple code block',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Start with a \nparagraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdCodeblockStd.new(indent => "        ", value => "Continue with\na code\nblock\n", type => "CodeblockStd"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Finish with another\nparagraph...", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Start with a\nparagraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace")], type => "Paragraph"), ManulC::Parser::MD::MdCodeblockStd.new(indent => "        ", value => "Continue with\na code\nblock\n", type => "CodeblockStd"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Finish with another\nparagraph...", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc")
         },
         {
             text => q:to/CODE/,
-                    Start with a 
+                    Start with a
                     paragraph
 
                             Continue with
@@ -40,18 +41,18 @@ subtest "Valid" => {
                     paragraph...
                     CODE
             name => 'no blank line',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Start with a \nparagraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdCodeblockStd.new(indent => "        ", value => "Continue with\na code\nblock\n", type => "CodeblockStd"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Finish with another\nparagraph...", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Start with a\nparagraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace")], type => "Paragraph"), ManulC::Parser::MD::MdCodeblockStd.new(indent => "        ", value => "Continue with\na code\nblock\n", type => "CodeblockStd"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Finish with another\nparagraph...", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
         },
         {
             text => q{
-Start with a 
+Start with a
 paragraph
 
         Continue with
         a code
         block},
             name => 'code block at the end',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Start with a \nparagraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdCodeblockStd.new(indent => "        ", value => "Continue with\na code\nblock", type => "CodeblockStd")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Start with a\nparagraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace")], type => "Paragraph"), ManulC::Parser::MD::MdCodeblockStd.new(indent => "        ", value => "Continue with\na code\nblock", type => "CodeblockStd")], type => "Doc"),
         },
         {
             text => q:to/CODE/,
@@ -167,21 +168,11 @@ paragraph
         },
         ;
 
-    plan 2 * @tests.elems;
-
-    for @tests -> $test {
-        Markdown::prepare-globals;
-        my $res = MDParse( $test<text> );
-        #diag $res.gist;
-        #diag $res.ast.dump;
-        ok so $res, $test<name>;
-        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
-        #diag $res.ast.perl;
-    }
+    md-test-structure( @tests );
 }
 
 subtest "Invalid" => {
-    my @tests = 
+    my @tests =
         {
             text => q:to/CODE/,
                     ````
@@ -189,22 +180,12 @@ subtest "Invalid" => {
                       here
                     ```
                     CODE
-            name => 'fenced fencing, length mismatch',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainData.new(value => "````\nthe code goes\n  here\n``", type => "PlainData"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+            name => 'fence length mismatch',
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdVerbatim.new(marker => "``", space => Str, content => [ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial"), ManulC::Parser::MD::MdPlainStr.new(value => "\nthe code goes\n  here\n", type => "PlainStr")], type => "Verbatim"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
         },
         ;
 
-    plan 2 * @tests.elems;
-
-    for @tests -> $test {
-        Markdown::prepare-globals;
-        my $res = MDParse( $test<text> );
-        #diag $res.gist;
-        #diag $res.ast.dump;
-        ok so $res, $test<name>;
-        is-deeply $res.ast, $test<struct>, $test<name> ~ ": structure";
-        #diag $res.ast.perl;
-    }
+    md-test-structure( @tests );
 }
 
 done-testing;

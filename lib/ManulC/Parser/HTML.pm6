@@ -17,15 +17,19 @@ module ManulC::Parser::HTML {
             :i '#x' <[0..9a..f]>+
         }
         token mdHTMLCharReference:sym<named> {
-            ( \w+ ) <?{ %namedChars{~$/[0]}:exists }>
+            \w+ <?{ %namedChars{~$/}:exists }>
         }
     }
 
     role HTML-Tag is export {
         also does HTML-Entity;
 
+        token mdHTMLComment {
+            '<!--' .*? '-->'
+        }
+
         token mdHTMLTag {
-            '<' ( <mdHTMLStartTag> '/'? | <mdHTMLEndTag> ) '>'
+            '<' [ <mdHTMLStartTag> '/'? || <mdHTMLEndTag> ] '>'
         }
 
         token mdHTMLTagName {

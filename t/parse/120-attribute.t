@@ -1,17 +1,19 @@
 use v6;
-#`(
-no precompilation;
-use Grammar::Tracer;
-)
 use lib q<./build-tools/lib>;
-use Test;
 use MCTest;
+use Test;
 use ManulC::Parser::MD;
+
+my Int $*md-indent-width;
+my Str $*md-line-prefix;
+my Regex $*md-quotable;
+my Regex $*md-line-end;
+my Bool %*md-line-elems;
 
 plan 2;
 
 subtest "Valid" => {
-    my @tests = 
+    my @tests =
         {
             text => q<{#anchor}>,
             name => 'attributes with only id',
@@ -38,7 +40,7 @@ subtest "Valid" => {
 }
 
 subtest "Embedding" => {
-    my @tests = 
+    my @tests =
         {
             text => q:to/HEAD/,
                         # ATX heading {#anchor .class}
@@ -66,7 +68,7 @@ subtest "Embedding" => {
                         A paragraph {.class #id mykey="my value"} with attributes.
                         HEAD
             name => 'paragraph',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "mykey", quote => "\"", value => "my value", type => "AttributeKeyval")), type => "Attributes"), ManulC::Parser::MD::MdPlainStr.new(value => " with attributes.", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdPlainData.new(value => "\n", type => "PlainData")], type => "Paragraph")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "A paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass"), ManulC::Parser::MD::MdAttributeId.new(value => "id", type => "AttributeId"), ManulC::Parser::MD::MdAttributeKeyval.new(key => "mykey", quote => "\"", value => "my value", type => "AttributeKeyval")), type => "Attributes"), ManulC::Parser::MD::MdPlainStr.new(value => " with attributes.", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
         },
         ;
 
