@@ -14,6 +14,7 @@ sub md-test-structure ( @tests, :$rule?, :$nok?, :$diag-match?, :$diag-ast?, :$i
     for @tests -> $tst {
         $planned++;
         $planned++ with $tst<struct>;
+        $planned++ with $tst<subtest>;
     }
 
     plan $planned;
@@ -44,6 +45,12 @@ sub md-test-structure ( @tests, :$rule?, :$nok?, :$diag-match?, :$diag-ast?, :$i
             } else {
                 skip "NO AST" ~ ( $res ?? "" !! ", PARSE FAILED" ), 1;
             }
+        }
+        with $test<subtest> {
+            my &st-block = {
+                $test<subtest>( $res )
+            };
+            subtest "Custom subtest of " ~ $test<name>, &st-block;
         }
         #note $res.ast.perl;
     }

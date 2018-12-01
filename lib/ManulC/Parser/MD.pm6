@@ -1,6 +1,7 @@
 use v6.c;
 # no precompilation;
 # use Grammar::Tracer;
+#use Grammar::Tracer::Compact;
 
 module ManulC::Parser::MD {
     use ManulC::Parser::HTML;
@@ -44,6 +45,7 @@ module ManulC::Parser::MD {
             :my Regex $*md-quotable;
             :my $*md-line-end;
             :my Bool %*md-line-elems;
+            :my %*md-link-definitions;
             { prepare-globals }
             <md-doc>
         }
@@ -133,12 +135,14 @@ module ManulC::Parser::MD {
         token md-link:sym<adhoc> {
             '[' ~ ']' <md-link-text>
             '(' ~ ')' <md-link-dest>
+            <md-attributes>?
         }
 
         token md-link:sym<reference> {
             [ '[' ~ ']' <md-linkdef-id> \h* '[]' ]
             ||
             [ '[' ~ ']' <md-link-text> \h* '[' ~ ']' <md-linkdef-id> ]
+            <md-attributes>?
         }
 
         # Link text is similar to md-line except that:
@@ -153,7 +157,7 @@ module ManulC::Parser::MD {
         }
 
         token md-link-dest {
-            <md-link-addr> [ \h+ <md-link-addr-title> ]?
+            <md-link-addr> [ \s+ <md-link-addr-title> ]?
         }
 
         token md-linkdef-id {
@@ -162,7 +166,6 @@ module ManulC::Parser::MD {
 
         token md-linkdef-addr {
             <md-autolink>
-            || <md-addr>
             || $<md-linkdef-addr-value>=\S+
         }
 
@@ -214,7 +217,7 @@ module ManulC::Parser::MD {
         }
 
         token md-link-addr {
-            <md-plain-str( rx/ \h || \) / )>
+            <md-plain-str( rx/ \s || \) / )>
         }
 
         # - only escaped or special chars are allowed
@@ -222,12 +225,16 @@ module ManulC::Parser::MD {
         # - " enclosed
         # - could be empty (is it a good idea?)
         token md-link-addr-title {
+            :my $ttl-closing;
             :temp $*md-quotable = rx/<[\"]>/;
-            \" ~ \" [
-                <md-chr-escaped>
-                || <md-chr-special>
-                || <md-plain-str(rx/ <md-chr-special> || <md-chr-escaped> || \" /)>
-            ]*
+            :temp $*md-line-end;
+            <["']> {
+                my $q = ~$/;
+                only-line-elements( <chr-escaped chr-special> );
+                $*md-line-end = $ttl-closing = rx/ $($q) /;
+            }
+            <md-line>
+            $($ttl-closing)
         }
 
         token md-header {
@@ -529,6 +536,11 @@ module ManulC::Parser::MD {
             )
         }
 
+        method classes { ["Entity"] }
+
+        method Str {
+            fail "Element of type '" ~ self.WHO ~ "' doesn't support stringification";
+        }
     }
 
     class MdPlainData is MdEntity is export {
@@ -539,6 +551,8 @@ module ManulC::Parser::MD {
             return $ent ~ "\n" ~ $!value.ast-dump( $level + 1 ) if $!value ~~ MdEntity;
             $ent ~ ": «" ~ $!value ~ "»";
         }
+
+        method Str { ~$!value }
     }
 
     class MdContainer is MdEntity is export {
@@ -555,15 +569,18 @@ module ManulC::Parser::MD {
         method ast-dump ( Int $level --> Str ) {
             callsame() ~ "\n" ~ @.content.map( { .ast-dump( $level + 1 ) } ).join( "\n" )
         }
+
+        method classes {
+            callsame().push: "Container";
+        }
     }
 
     class MdBlankSpace          is MdPlainData      is export { }
     class MdChar                is MdPlainData      is export { }
-    class MdDoc                 is MdContainer      is export { }
     class MdPlainStr            is MdPlainData      is export { }
     class MdLine                is MdContainer      is export { }
 
-    class MdBlockquote          is MdDoc            is export { }
+    class MdBlockquote          is MdContainer      is export { }
     class MdChrEscaped          is MdChar           is export { }
     class MdChrSpecial          is MdChar           is export { }
     class MdCodeBlock           is MdPlainData      is export { }
@@ -574,13 +591,8 @@ module ManulC::Parser::MD {
     class MdLiItemText          is MdLine           is export { }
     class MdLiItemStarter       is MdPlainData      is export { }
 
-    class MdVerbatim is MdContainer is export {
-        has Str $.marker;
-        has Str $.space;
-
-        method info-str {
-            "code marker:«$.marker»" ~ ($.space ?? " with space" !! "")
-        }
+    class MdDoc is MdContainer is export {
+        has %.link-definitions;
     }
 
     class MdLiItemStart is MdPlainData is export {
@@ -615,15 +627,6 @@ module ManulC::Parser::MD {
         }
     }
 
-    class MdCodeblockStd is MdCodeBlock is export {
-        has Str $.indent;
-    }
-
-    class MdCodeblockFenced is MdCodeBlock is export {
-        has Str $.language;
-        has Str $.comment;
-    }
-
     class MdLiItem is MdContainer is export {
         has MdLiItemStart:D $.starter is required;
 
@@ -633,7 +636,7 @@ module ManulC::Parser::MD {
     }
 
 
-    class MdLinkAddr        is MdPlainData  is export { }
+    class MdLinkAddr        is MdPlainStr   is export { }
     class MdLinkText        is MdContainer  is export { }
 
     class MdLink is MdEntity is export {
@@ -643,6 +646,10 @@ module ManulC::Parser::MD {
         method ast-dump ( Int $level --> Str ) {
             callsame() ~ "\n" ~ $.addr.ast-dump( $level + 1 ) ~ "\n" ~ $.text.ast-dump( $level + 1 )
         }
+
+        method classes {
+            callsame.push: "Link"
+        }
     }
 
     class MdAddrEmail           is MdPlainStr       is export { }
@@ -651,17 +658,35 @@ module ManulC::Parser::MD {
     class MdAttributeId         is MdPlainStr       is export { }
     class MdAutolink            is MdPlainData      is export { }
     class MdLiDelimiter         is MdPlainStr       is export { }
-    class MdLinkAddrTitle       is MdContainer      is export { }
+    class MdLinkTitle           is MdLine           is export { }
     class MdLinkReference       is MdLink           is export { }
-    class MdLinkdefAddr         is MdPlainData      is export { }
     class MdLinkdefId           is MdPlainStr       is export { }
     class MdLinkdefParagraph    is MdContainer      is export { }
-    class MdLinkdefTitle        is MdLine           is export { }
     class MdSpecialChr          is MdPlainData      is export { }
     class MdSublist             is MdList           is export { }
 
     class MdAttributes is MdEntity is export {
         has MdEntity @.attrs;
+    }
+
+    class MdVerbatim is MdContainer is export {
+        has Str $.marker;
+        has Str $.space;
+        has MdAttributes $.attrs;
+
+        method info-str {
+            "code marker:«$.marker»" ~ ($.space ?? " with space" !! "")
+        }
+    }
+
+    class MdCodeblockStd is MdCodeBlock is export {
+        has Str $.indent;
+    }
+
+    class MdCodeblockFenced is MdCodeBlock is export {
+        has Str $.language;
+        has Str $.comment;
+        has MdAttributes $.attrs;
     }
 
     class MdHead is MdContainer is export {
@@ -686,7 +711,8 @@ module ManulC::Parser::MD {
     }
 
     class MdLinkAdhoc is MdLink is export {
-        has MdLinkAddrTitle $.title;
+        has MdLinkTitle $.title;
+        has MdAttributes $.attrs;
 
         method ast-dump ( Int $level --> Str ) {
             my $title-dump = $.title.defined ??  "\n" ~ $.title.ast-dump( $level + 1 ) !! "";
@@ -705,9 +731,10 @@ module ManulC::Parser::MD {
 
     class MdLinkDefinition is MdEntity is export {
         has Str $.id is required;
-        has MdLinkdefAddr $.addr is required;
+        has MdLinkAddr $.addr is required;
         has MdLine $.title;
         has Str $.indent;
+        has MdAttributes $.attrs;
 
         method ast-dump ( Int $level --> Str ) {
             callsame()
@@ -771,6 +798,10 @@ module ManulC::Parser::MD {
             $m.make( $node );
         }
 
+        method md-doc ( $m ) {
+            self.addNode( "Doc", $m, link-definitions => %*md-link-definitions );
+        }
+
         method md-header ( $m ) { $m.make( $m<md-head>.ast ) }
 
         method md-head:sym<setext> ( $m ) {
@@ -785,7 +816,8 @@ module ManulC::Parser::MD {
 
         method md-blockquote ($m) {
             my $bq = self.makeNode( "Blockquote" );
-            $bq.push( $m.ast.ast );
+            %*md-link-definitions = %*md-link-definitions, |$m.ast.ast.link-definitions;
+            $bq.append( $m.ast.ast.content );
             $m.make( $bq );
         }
 
@@ -893,6 +925,10 @@ module ManulC::Parser::MD {
             );
         }
 
+        method md-link-addr-title ( $m ) {
+            $m.make( self.makeNode( 'LinkTitle', content => $m<md-line>.ast.content ) )
+        }
+
         method md-link:sym<adhoc> ( $m ) {
             my %link-attrs;
 
@@ -900,6 +936,9 @@ module ManulC::Parser::MD {
             %link-attrs<addr> = $m<md-link-dest><md-link-addr>.ast;
             with $m<md-link-dest><md-link-addr-title> {
                 %link-attrs<title> = .ast;
+            }
+            with $m<md-attributes> {
+                %link-attrs<attrs> = .ast;
             }
             my $link = self.makeNode("LinkAdhoc", |%link-attrs);
             $m.make( $link );
@@ -920,6 +959,9 @@ module ManulC::Parser::MD {
             %link-attrs<addr> = self.makeNode(
                                     'LinkAddr',
                                     value => ~( $m<md-linkdef-id> // $m<md-link-text> ) );
+            with $m<md-attributes> {
+                %link-attrs<attrs> = .ast;
+            }
 
             my $link = self.makeNode( "LinkReference", |%link-attrs );
             $m.make( $link );
@@ -939,13 +981,13 @@ module ManulC::Parser::MD {
                 $addr = .ast;
             }
 
-            $m.make( self.makeNode( 'LinkdefAddr', :value( $addr ) ) );
+            $m.make( self.makeNode( 'LinkAddr', :value( $addr ) ) );
         }
 
         method md-linkdef-title ( $m ) {
             $m.make(
                 self.makeNode(
-                    'LinkdefTitle',
+                    'LinkTitle',
                     content => $m<md-line>.ast.content,
                 )
             );
@@ -958,8 +1000,11 @@ module ManulC::Parser::MD {
 
             %linkdef-attrs<title> = .ast with $m<md-linkdef-title>;
             %linkdef-attrs<indent> = ~$_ with $m<md-ld-indent>;
+            %linkdef-attrs<attrs> = .ast with $m<md-attributes>;
 
-            $m.make( self.makeNode( 'LinkDefinition', |%linkdef-attrs ) );
+            my $ldef = self.makeNode( 'LinkDefinition', |%linkdef-attrs );
+            %*md-link-definitions{ %linkdef-attrs<id>.fc } = $ldef;
+            $m.make( $ldef );
         }
 
         method md-image ( $m ) {
@@ -998,9 +1043,9 @@ module ManulC::Parser::MD {
         #}
 
         # Simple nodes where it is enough to use string part of the match
-        multi method addNode(Str $name, $m ) {
+        multi method addNode(Str $name, $m, |node-params ) {
             #note "ADDNODE<$name>:", $m;
-            my $node = self.makeNode( $name );
+            my $node = self.makeNode( $name, |node-params );
             unless ($!containerClass) {
                 $!containerClass = ::( self.type2class( "Container" ) );
                 $!plainDataClass = ::( self.type2class( "PlainData" ) );
@@ -1044,19 +1089,24 @@ module ManulC::Parser::MD {
     }
 
     role MDTranslator is export {
-        has MdEntity $.elem is required;
+        proto method translate (|) {*}
 
-        multi method translate () {
-            #say "[default]";
-            self.translate( $.elem );
+        method !map-translate-element ( MdEntity:D $elem ) {
+            my $str = self.translate( $elem );
+            #note "GOT STR: ", $str, " // ", $str.WHAT, " from ", $_.WHO;
+            if $str ~~ Failure {
+                return self.on-failure( $str );
+            }
+            CATCH { default { $str = self.on-exception( $_ ); return $str } }
+            $str
         }
 
         multi method translate(MdContainer $elem) {
-            #say "[container {$elem.name}]";
-            return [~] $elem.content.map: { self.translate( $_ ) };
+            return [~] $elem.content.map: { self!map-translate-element($_) }
         }
 
-        multi method translate(MdPlainData $elem) { ... }
+        method on-failure { ... }
+        method on-exception { ... }
     }
 
     multi MDParse ( Str:D $mdText, |parserArgs ) is export {

@@ -13,6 +13,8 @@ my Regex $*md-quotable;
 my $*md-line-end;
 my Bool %*md-line-elems;
 
+plan 6;
+
 subtest "Basics", {
     my @tests = {
         text => qq{

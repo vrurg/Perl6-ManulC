@@ -25,13 +25,29 @@ method activations ( Str $name ) { $!active-now{ $name } }
 
 proto method wrap (|) { * }
 
-multi method wrap ( Str $name, &code ) {
-    self.enter( $name );
-    LEAVE self.exit( $name );
+multi method wrap ( @names, &code, |args ) {
+    @names.map: { self.enter( $_ ) };
+    LEAVE @names.map: { self.exit( $_ ) };
 
-    code
+    code( |args );
+}
+
+multi method wrap ( Str $name, &code, |args ) {
+    samewith( [$name], &code, |args )
 }
 
 multi method wrap ( Pair $ctx-block where { .value ~~ Callable } ) {
-    samewith( $ctx-block.key, $ctx-block.value )
+    samewith( [ $ctx-block.key ], $ctx-block.value )
+}
+
+multi infix:<+> ( Context $ctx, Str $name ) is export {
+    $ctx.enter( $name )
+}
+
+multi infix:<-> ( Context $ctx, Str $name ) is export {
+    $ctx.exit( $name )
+}
+
+multi infix:<has> ( Context $ctx, Str $name ) is export {
+    $ctx.active( $name )
 }

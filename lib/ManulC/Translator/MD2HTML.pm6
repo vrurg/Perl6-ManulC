@@ -1,5 +1,6 @@
 module ManulC::Translator {
     use ManulC::Parser::MD;
+    use ManulC::Context;
 
     our %char2ent = '&' => '&amp;',
                     '<' => '&lt;',
@@ -7,25 +8,258 @@ module ManulC::Translator {
     ;
 
     class MD2HTML does MDTranslator is export {
+        has Str $.class-prefix = "mc";
+        has Context $.ctx .= new;
+        has %.link-definitions;
 
-        multi method translate(MdSpecialChr $elem) {
-            #say "[special char]";
-            %char2ent{$elem.value} || '&#' ~ ord( $elem.value ) ~ ';';
+        proto method mc-class (|) {*}
+        multi method mc-class ( @classes ) {
+            @classes.map: $!class-prefix ~ *
+        }
+        multi method mc-class ( Str $base-class ) {
+            samewith( [ $base-class ] )
+        }
+        multi method mc-class ( MdEntity $elem, Str $class ) {
+            samewith( [ |$elem.classes, $class ] );
+        }
+        multi method mc-class ( MdEntity $elem, @classes ) {
+            samewith( [ |$elem.classes, |@classes ] );
         }
 
-        multi method translate(MdHead $h) {
+        method kvAttr2pair ( MdAttributeKeyval:D $elem ) {
+            with $elem {
+                return .key => .quote ~ .value ~ .quote
+            }
+        }
+
+        proto method tag (|) {*}
+
+        multi method tag ( Pair $tag, |args --> Str) {
+                samewith( $tag.key, $tag.value, |args )
+        }
+
+        multi method tag (
+            Str:D $tag!,
+            Str $content?,
+            MdAttributes :$md-attrs?,
+            :@classes is copy,
+            :@ids is copy,
+            :@attrs is copy
+            --> Str
+        ) {
+            my $att-str = "";
+
+            with $md-attrs {
+                for .attrs -> $attr {
+                    given $attr {
+                        when MdAttributeId {
+                            @ids.push: .value;
+                        }
+                        when MdAttributeClass {
+                            @classes.push: .value;
+                        }
+                        when MdAttributeKeyval {
+                            @attrs.append: self.kvAttr2pair( $_ );
+                        }
+                        default {
+                            fail "Unknown attribute element type: " ~ .WHO;
+                        }
+                    }
+                }
+            }
+
+            my @a-str;
+
+            @a-str.push: 'class="' ~ @classes.map( { ~$_ } ).join(" ") ~ '"' if @classes;
+            @a-str.push: 'id="' ~ @ids.map( { ~$_ } ).join(" ") ~ '"' if @ids;
+            @a-str.append: @attrs.map: { .key ~ '=' ~ .value } if @attrs;
+
+            $att-str = @a-str.join(" ");
+
+            with $content {
+                "<$tag $att-str>$content\</$tag>"
+            }
+            else {
+                "<$tag $att-str />"
+            }
+        }
+
+        method chr2ent ( Str $chr ) {
+            %char2ent{ $chr } || '&#' ~ ord( $chr ) ~ ';';
+        }
+
+        method on-failure ( Failure $fail ) {
+            self.tag( "span", $fail.exception.message, classes => self.mc-class(<Warning>) )
+        }
+
+        method on-exception ( Exception $ex ) {
+            self.tag( "div", ~$ex, classes => self.mc-class(<Error>) )
+        }
+
+        multi method translate ( MdDoc:D $elem ) {
+            %!link-definitions = $elem.link-definitions;
+            callsame
+        }
+
+        multi method translate(MdChrSpecial:D $elem) {
+            self.chr2ent( $elem.value );
+        }
+
+        multi method translate ( MdChrEscaped $elem ) {
+            return "<br />" if $elem.value ~~ /\n/;
+            self.chr2ent( $elem.value );
+        }
+
+        multi method translate ( MdParagraph:D $elem ) {
+            my &callee = nextcallee;
+            $!ctx.wrap( "paragraph" => -> {
+                    self.tag( 'p', self.&callee( $elem ), classes => self.mc-class( $elem, "Paragraph" ) );
+                }
+            )
+        }
+
+        multi method translate ( MdAttributes:D $elem ) {
+            # Only IDs are used. For now at least.
+
+            my @anchors;
+            for $elem.attrs -> $attr {
+                if $attr ~~ MdAttributeId {
+                    @anchors.push: self.tag( "a", :ids([$attr.value]) );
+                }
+            }
+
+            @anchors.join;
+        }
+
+        multi method translate ( MdAutolink:D $elem ) {
+            my $addr = $elem.value;
+
+            given $addr {
+                when MdAddrUrl {
+                    my %attrs = href => .value;
+                    return self.tag( "a", .value, :%attrs );
+                }
+                when MdAddrEmail {
+                    # Expected code:
+                    # return self.obscure-email( .value );
+                    # NOTE: Perhaps obsuring must be handed over to a macro/plugin
+                    return self.tag( "span", "Emails are not generated yet", classes => self.mc-class("Alert") );
+                }
+            }
+            fail "Unknown autolink address class: " ~ $addr.WHO;
+        }
+
+        multi method translate ( MdLinkDefinition:D $elem ) {
+            ""
+        }
+
+        # This thing never returns a things...
+        multi method translate ( MdLinkdefParagraph:D $elem ) {
+            ""
+        }
+
+        multi method translate ( MdVerbatim:D $elem ) {
+            my &callee = nextcallee;
+            $!ctx.wrap( "verbatim" => -> {
+                    self.tag(
+                        "code",
+                        self.&callee( $elem ),
+                        md-attrs => $elem.attrs,
+                        classes => self.mc-class( $elem, "Verbatim" ),
+                    )
+                }
+            );
+        }
+
+        multi method translate ( MdLink:D $elem, :@attrs is copy, |args ) {
+            $!ctx.wrap(
+                "link" => -> {
+                    self.tag(
+                            "a",
+                            self.translate( $elem.text ),
+                            :@attrs,
+                            :classes( self.mc-class( $elem, $elem.type ) ),
+                            |args
+                    );
+                }
+            )
+        }
+
+        multi method translate ( MdLinkAdhoc:D $elem ) {
+            my &callee = nextcallee;
+            $!ctx.wrap(
+                'link-adhoc',
+                -> {
+                    my @attrs;
+
+                    @attrs.append: ( href => self.translate( $elem.addr ) );
+
+                    if $elem.title {
+                        @attrs.append: ( title => self.translate( $elem.title ) );
+                    }
+
+                    self.&callee( $elem, :@attrs, :md-attrs( $elem.attrs ) );
+                }
+            );
+        }
+
+        multi method translate ( MdLinkTitle:D $elem ) {
+            return '"' ~ callsame() ~ '"'
+        }
+
+        multi method translate ( MdLinkAddr:D $elem ) {
+            my $straddr = $elem.value ~~ MdEntity ?? callsame() !! ~$elem.value;
+            '"' ~ $straddr ~ '"'
+        }
+
+        multi method translate ( MdLinkReference:D $elem ) {
+            my &callee = nextcallee;
+            my $rc = $!ctx.wrap(
+                'link-reference', sub { # Use sub because fail within a block behaves not as I'd want it... ;)
+                    my @attrs;
+                    my $def = %!link-definitions{ $elem.addr.value.fc };
+                    fail "No link definition found for ID '" ~ $elem.addr.value ~ "'" unless $def;
+
+                    @attrs.append: ( href => self.translate( $def.addr ) );
+                    with $def.title {
+                        @attrs.append: ( title => self.translate( $def.title ) );
+                    }
+
+                    self.&callee( $elem, :@attrs, :md-attrs( $def.attrs ) );
+                }
+            );
+            $rc
+        }
+
+        multi method translate( MdHead:D $h ) {
             #say "[heading]";
             my $tagName = 'h' ~ $h.level;
-            return "<$tagName>" ~ callsame() ~ "</$tagName>";
+            self.tag( $tagName, callsame(), attrs => $h.attributes );
         }
 
-        multi method translate(MdBlockquote $elem) {
-            return "<blockquote>" ~ callsame() ~ "</blockquote>";
+        multi method translate(MdBlockquote:D $elem) {
+            self.tag( 'blockquote', callsame() );
         }
 
-        multi method translate(MdPlainData $elem) {
-            #say "[plain {$elem.name}]";
-            $elem.value;
+        multi method translate ( MdBlankSpace:D $elem ) {
+            return "" if $!ctx has "paragraph";
+            "\n\n"
         }
+
+        multi method translate ( MdEol:D $elem ) {
+            return "" if $!ctx has "paragraph";
+            "\n"
+        }
+
+        multi method translate(MdPlainData:D $elem) {
+            fail "Element '" ~ self.WHO ~ "' value is not defined" without $elem.value;
+            # note "PLAIN DATA: ", $elem.WHO;
+            ~$elem.value;
+        }
+    }
+
+    sub md2html ( Str $text ) is export {
+        my $struct = MDParse( $text ).ast;
+        MD2HTML.new.translate( $struct )
     }
 }
