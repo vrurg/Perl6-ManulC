@@ -1,6 +1,7 @@
 module ManulC::Parser::HTML {
-    no precompilation;
-    use Grammar::Tracer;
+    # no precompilation;
+    # use Grammar::Tracer;
+    #use Grammar::Tracer::Compact;
 
     our %namedChars;
     our $*html-nonval-chars is export = rx/\W & \w/;
@@ -33,7 +34,7 @@ module ManulC::Parser::HTML {
         }
 
         token mdHTMLTagName {
-            <alpha> <alnum>* 
+            <alpha> <alnum>*
         }
 
         rule mdHTMLStartTag {
@@ -50,10 +51,10 @@ module ManulC::Parser::HTML {
 
         rule mdHTMLAttribute {
             :my $*html-nonval-chars;
-            <mdHTMLAttrName> [ 
-                '=' 
-                [ 
-                    <mdHTMLAttrVal> 
+            <mdHTMLAttrName> [
+                '='
+                [
+                    <mdHTMLAttrVal>
                 ]
             ]?
         }
@@ -75,18 +76,18 @@ module ManulC::Parser::HTML {
         token mdHTMLAttrVal:sym<unquoted> {
             :my $*value-chars = rx{<[\s"'=<>`]>};
             :temp $*html-nonval-chars //= rx{ \W & \w };
-            <!after <['"]>> <mdHTMLValue> 
+            <!after <['"]>> <mdHTMLValue>
         }
 
         token mdHTMLValue {
             [ <mdHTMLCharText>+ %% <mdHTMLEntity> ]
         }
         token mdHTMLCharText {
-            .*? <?before $($*value-chars) || $($*html-nonval-chars) || <mdHTMLEntity>> 
+            .*? <?before $($*value-chars) || $($*html-nonval-chars) || <mdHTMLEntity>>
         }
     }
 
-    %namedChars = 
+    %namedChars =
         And => { codepoints => $[10835] },
         Or => { codepoints => $[10836] },
         and => { codepoints => $[8743] },
