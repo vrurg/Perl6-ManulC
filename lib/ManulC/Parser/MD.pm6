@@ -78,6 +78,10 @@ module ManulC::Parser::MD {
 
         token md-line {
             [
+
+                # XXX Possible optimization: moved <?{ }> construct in front of corresponding tokens and use it with
+                # <?before .>; create a benchmark test beforehand to see if this little complication really helps.
+
                    [ <md-chr-escaped>     <?{ %*md-line-elems<chr-escaped> }>     ]
                 || [ <md-attributes>      <?{ %*md-line-elems<attributes> }>      ]
                 || [ <md-autolink>        <?{ %*md-line-elems<autolink> }>        ]
@@ -88,8 +92,8 @@ module ManulC::Parser::MD {
                 || [ <md-emphasis>        <?{ %*md-line-elems<emphasis> }>        ]
                 || [ <md-chr-special>     <?{ %*md-line-elems<chr-special> }>     ]
                 || <md-plain-str(rx/
-                                    [ <md-chr-escaped> <?{ %*md-line-elems<chr-escaped> }> ]
-                                    || [ <md-chr-special> <?{ %*md-line-elems<chr-special> }> ]
+                                    [ <.md-chr-escaped> <?{ %*md-line-elems<chr-escaped> }> ]
+                                    || [ <.md-chr-special> <?{ %*md-line-elems<chr-special> }> ]
                                     || $($*md-line-end)
                                 /)>
             ]+? <?before $($*md-line-end)>
@@ -114,7 +118,7 @@ module ManulC::Parser::MD {
         token md-chr-escaped {
             \\ $<md-escaped-chr>=$($*md-quotable)
         }
-        token md-chr-special { <[&<>_*`(){}[\]]> }
+        token md-chr-special { <[!&<>_*'"`(){}[\]]> }
         token md-plain-str ( $str-end ) { [ <!before $($str-end)> . ]+ }
 
         proto token md-addr {*}
@@ -203,7 +207,7 @@ module ManulC::Parser::MD {
         }
 
         token md-emph-mark {
-            <[_*]> ** 1..2 <?before \S>
+            [ <[_*]> | '**' | '__' ] <?before \S>
         }
 
         token md-emphasis {
@@ -228,6 +232,7 @@ module ManulC::Parser::MD {
             :my $ttl-closing;
             :temp $*md-quotable = rx/<[\"]>/;
             :temp $*md-line-end;
+            :temp %*md-line-elems;
             <["']> {
                 my $q = ~$/;
                 only-line-elements( <chr-escaped chr-special> );
@@ -744,7 +749,7 @@ module ManulC::Parser::MD {
         }
     }
 
-    class MdEmphasis is MdPlainStr is export {
+    class MdEmphasis is MdPlainData is export {
         has Str $.mark is required;
 
         method info-str { $.mark }
@@ -1091,13 +1096,17 @@ module ManulC::Parser::MD {
     role MDTranslator is export {
         proto method translate (|) {*}
 
-        method !map-translate-element ( MdEntity:D $elem ) {
+        method !map-translate-element ( MdEntity:D $elem --> Str ) {
             my $str = self.translate( $elem );
             #note "GOT STR: ", $str, " // ", $str.WHAT, " from ", $_.WHO;
             if $str ~~ Failure {
                 return self.on-failure( $str );
             }
-            CATCH { default { $str = self.on-exception( $_ ); return $str } }
+            CATCH {
+                default {
+                    return self.on-exception( $_ );
+                }
+            }
             $str
         }
 

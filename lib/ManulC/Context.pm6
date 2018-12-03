@@ -4,14 +4,21 @@ unit class Context;
 
 has BagHash $!active-now .= new;
 
-method enter ( Str $name ) {
+proto method enter (|) {*}
+multi method enter ( Str $name ) {
     $!active-now{ $name }++;
 }
-
-method exit ( Str $name ) {
-    $!active-now{ $name }--;
+multi method enter ( @names ) {
+    $!active-now{ $_ }++ for @names;
 }
 
+proto method exit (|) {*}
+multi method exit ( Str $name ) {
+    $!active-now{ $name }--;
+}
+multi method exit ( @names ) {
+    $!active-now{ $_ }-- for @names;
+}
 
 method reset ( Str $name ) {
     $!active-now{ $name }:delete;
@@ -23,13 +30,17 @@ method active ( Str $name ) {
 
 method activations ( Str $name ) { $!active-now{ $name } }
 
-proto method wrap (|) { * }
+proto method wrap (|) {*}
 
-multi method wrap ( @names, &code, |args ) {
-    @names.map: { self.enter( $_ ) };
-    LEAVE @names.map: { self.exit( $_ ) };
+multi method wrap ( @names is copy, &code, |args ) {
+    # XXX LEAVE would be more reasonable here. But, unfortunately, it's broken when a loop is used inside it.
+    CATCH { self.exit: @names; $_.rethrow };
 
-    code( |args );
+    self.enter( @names );
+
+    my $rc = code( |args );
+    self.exit( @names );
+    $rc;
 }
 
 multi method wrap ( Str $name, &code, |args ) {

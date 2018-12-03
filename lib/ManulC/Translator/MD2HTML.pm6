@@ -25,6 +25,9 @@ module ManulC::Translator {
         multi method mc-class ( MdEntity $elem, @classes ) {
             samewith( [ |$elem.classes, |@classes ] );
         }
+        multi method mc-class ( *@classes ) {
+            samewith( @classes )
+        }
 
         method kvAttr2pair ( MdAttributeKeyval:D $elem ) {
             with $elem {
@@ -77,11 +80,56 @@ module ManulC::Translator {
             $att-str = @a-str.join(" ");
 
             with $content {
-                "<$tag $att-str>$content\</$tag>"
+                return "<$tag $att-str>$content\</$tag>"
             }
-            else {
-                "<$tag $att-str />"
-            }
+
+            "<$tag $att-str />"
+        }
+
+        method img-tag( MdLink $elem, :@attrs is copy, Str :$class, |args ) {
+            @attrs.append: ( alt => '"' ~ self.translate( $elem.text ) ~ '"' );
+            my $str = self.tag(
+                "img",
+                :@attrs,
+                :classes( self.mc-class( "Image", $class ) ),
+                |args
+            );
+            $str
+        }
+
+        proto method img (|) {*}
+        multi method img( MdLinkAdhoc $elem ) {
+            my $str = $!ctx.wrap(
+                "image-adhoc" => sub {
+                    my @attrs;
+
+                    @attrs.append: ( src => self.translate( $elem.addr ) );
+
+                    with $elem.title {
+                        @attrs.append: ( title => self.translate( $_ ) );
+                    }
+
+                    self.img-tag( $elem, :@attrs, :class<ImageAdhoc>, :md-attrs( $elem.attrs ) );
+                }
+            );
+            $str;
+        }
+
+        multi method img ( MdLinkReference $elem ) {
+            $!ctx.wrap(
+                'image-reference' => sub {
+                    my @attrs;
+                    my $def = %!link-definitions{ $elem.addr.value.fc };
+                    fail "No image definition found for ID '" ~ $elem.addr.value ~ "'" unless $def;
+
+                    @attrs.append: ( src => self.translate( $def.addr ) );
+                    with $def.title {
+                        @attrs.append: ( title => self.translate( $_ ) );
+                    }
+
+                    self.img-tag( $elem, :@attrs, :class<ImageReference>, :md-attrs( $def.attrs ) );
+                }
+            )
         }
 
         method chr2ent ( Str $chr ) {
@@ -93,7 +141,7 @@ module ManulC::Translator {
         }
 
         method on-exception ( Exception $ex ) {
-            self.tag( "div", ~$ex, classes => self.mc-class(<Error>) )
+            self.tag( "div", $ex ~ $ex.backtrace, classes => self.mc-class(<Error>) )
         }
 
         multi method translate ( MdDoc:D $elem ) {
@@ -112,7 +160,7 @@ module ManulC::Translator {
 
         multi method translate ( MdParagraph:D $elem ) {
             my &callee = nextcallee;
-            $!ctx.wrap( "paragraph" => -> {
+            $!ctx.wrap( "paragraph", -> {
                     self.tag( 'p', self.&callee( $elem ), classes => self.mc-class( $elem, "Paragraph" ) );
                 }
             )
@@ -136,8 +184,8 @@ module ManulC::Translator {
 
             given $addr {
                 when MdAddrUrl {
-                    my %attrs = href => .value;
-                    return self.tag( "a", .value, :%attrs );
+                    my @attrs = href => .value;
+                    return self.tag( "a", .value, :@attrs );
                 }
                 when MdAddrEmail {
                     # Expected code:
@@ -171,7 +219,7 @@ module ManulC::Translator {
             );
         }
 
-        multi method translate ( MdLink:D $elem, :@attrs is copy, |args ) {
+        multi method translate ( MdLink:D $elem, :@attrs, |args ) {
             $!ctx.wrap(
                 "link" => -> {
                     self.tag(
@@ -231,13 +279,41 @@ module ManulC::Translator {
             $rc
         }
 
+        multi method translate ( MdImage $elem ) {
+            $!ctx.wrap(
+                'image' => sub { self.img( $elem.link ) }
+            )
+        }
+
+        multi method translate ( MdEmphasis $elem ) {
+            $!ctx.wrap:
+                'emphasis' => sub {
+                    my $text = self.translate( $elem.value );
+                    my Str $tag;
+                    my @classes;
+                    given $elem.mark {
+                        when '_' | '*' {
+                            $tag = 'em';
+                        }
+                        when '__' | '**' {
+                            $tag = 'strong';
+                        }
+                        default {
+                            $tag = 'span';
+                            @classes.push: 'BadEmphasis';
+                        }
+                    }
+                    self.tag( $tag, $text, classes => self.mc-class( $elem, @classes ) );
+                }
+        }
+
         multi method translate( MdHead:D $h ) {
             #say "[heading]";
             my $tagName = 'h' ~ $h.level;
             self.tag( $tagName, callsame(), attrs => $h.attributes );
         }
 
-        multi method translate(MdBlockquote:D $elem) {
+        multi method translate( MdBlockquote:D $elem ) {
             self.tag( 'blockquote', callsame() );
         }
 
@@ -253,7 +329,9 @@ module ManulC::Translator {
 
         multi method translate(MdPlainData:D $elem) {
             fail "Element '" ~ self.WHO ~ "' value is not defined" without $elem.value;
-            # note "PLAIN DATA: ", $elem.WHO;
+            if $elem.value ~~ MdEntity {
+                return self.translate( $elem.value );
+            }
             ~$elem.value;
         }
     }
