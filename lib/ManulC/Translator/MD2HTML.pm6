@@ -1,6 +1,7 @@
 module ManulC::Translator {
     use ManulC::Parser::MD;
     use ManulC::Context;
+    use WhereList;
 
     our %char2ent = '&' => '&amp;',
                     '<' => '&lt;',
@@ -20,16 +21,16 @@ module ManulC::Translator {
         multi method mc-class ( @classes ) {
             @classes.map: $!class-prefix ~ *
         }
-        multi method mc-class ( Str $base-class ) {
+        multi method mc-class ( Str:D $base-class ) {
             samewith( [ $base-class ] )
         }
-        multi method mc-class ( MdEntity $elem, Str $class ) {
-            samewith( [ |$elem.classes, $class ] );
-        }
-        multi method mc-class ( MdEntity $elem, @classes ) {
+        multi method mc-class ( MdEntity:D $elem, @classes ) {
             samewith( [ |$elem.classes, |@classes ] );
         }
-        multi method mc-class ( *@classes ) {
+        multi method mc-class ( MdEntity:D $elem, *@classes ) {
+            samewith( [ |$elem.classes, |@classes ] );
+        }
+        multi method mc-class ( *@classes where all-items Str:D  ) {
             samewith( @classes )
         }
 
@@ -81,10 +82,10 @@ module ManulC::Translator {
             @a-str.push: 'id="' ~ @ids.map( { ~$_ } ).join(" ") ~ '"' if @ids;
             @a-str.append: @attrs.map: { .key ~ '=' ~ .value } if @attrs;
 
-            $att-str = @a-str.join(" ");
+            $att-str = @a-str.elems ?? " " ~ @a-str.join(" ") !! "";
 
             with $content {
-                return "<$tag $att-str>$content\</$tag>"
+                return "<$tag$att-str>$content\</$tag>"
             }
 
             "<$tag $att-str />"
@@ -174,7 +175,7 @@ module ManulC::Translator {
                         classes => self.mc-class( $elem, "Paragraph" )
                     )
                 }
-            )
+            ) ~ "\n"
         }
 
         multi method translate ( MdAttributes:D $elem ) {
@@ -321,10 +322,20 @@ module ManulC::Translator {
                 }
         }
 
-        multi method translate( MdHead:D $h ) {
+        multi method translate( MdHead:D $elem ) {
             #say "[heading]";
-            my $tagName = 'h' ~ $h.level;
-            self.tag( $tagName, callsame(), attrs => $h.attributes );
+            my $tagName = 'h' ~ $elem.level;
+            my $className = 'Head' ~ $elem.level;
+            self.tag(
+                $tagName,
+                callsame(),
+                classes => self.mc-class( $elem, $className ),
+                md-attrs => $elem.attributes,
+            ) ~ "\n";
+        }
+
+        multi method translate ( MdHrule:D $elem ) {
+            self.tag( "hr", classes => self.mc-class($elem, "Hrule") ) ~ "\n"
         }
 
         multi method translate( MdBlockquote:D $elem ) {
@@ -333,12 +344,12 @@ module ManulC::Translator {
 
         multi method translate ( MdBlankSpace:D $elem ) {
             return "" if $!ctx.active: "paragraph";
-            "\n\n"
+            ""
         }
 
         multi method translate ( MdEol:D $elem ) {
             return "" if $!ctx.active: "paragraph";
-            "\n"
+            ""
         }
 
         multi method translate(MdPlainData:D $elem) {
