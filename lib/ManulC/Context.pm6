@@ -51,12 +51,12 @@ multi method wrap ( Pair $ctx-block where { .value ~~ Callable } ) {
     samewith( [ $ctx-block.key ], $ctx-block.value )
 }
 
-multi infix:<+> ( Context $ctx, Str $name ) is export {
-    $ctx.enter( $name )
+multi infix:<+=> ( Context $ctx, Str $name --> Any) is export {
+    $ctx.enter( $name );
 }
 
-multi infix:<-> ( Context $ctx, Str $name ) is export {
-    $ctx.exit( $name )
+multi infix:<-=> ( Context $ctx, Str $name ) is export {
+    $ctx.exit( $name );
 }
 
 multi infix:<has> ( Context $ctx, Str $name ) is export {
