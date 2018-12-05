@@ -255,12 +255,13 @@ module ManulC::Parser::MD {
             ^^
             $<md-hlevel>=[ '#' ** 1..6 ] {
                 $*md-line-end = rx{
-                    [ \h+ '#'+ \h* ]? <md-attributes>? <.md-eol>
+                    [ \h+ '#'+ ]? \h* <md-attributes>? <.md-eol>
                 } # rx end
             }
             \h+
             <md-line>
-            [ \h+ '#'+ \h* ]?
+            [ \h+ '#'+ ]?
+            \h*
             <md-attributes>?
             <md-eol>
         }
@@ -274,7 +275,7 @@ module ManulC::Parser::MD {
             [ \N+ <md-eol> [ '='+ || '-'+ ] <md-eol> ]
             &&
             [
-                { $*md-line-end = rx{ <.md-attributes>? <.md-eol> }; }
+                { $*md-line-end = rx{ \h* <.md-attributes>? <.md-eol> }; }
                 <md-line> \h* <md-attributes>? \h* <md-eol>
                 [
                     $<md-hlevel-first>=[ '='+ ]
@@ -589,6 +590,7 @@ module ManulC::Parser::MD {
     class MdChrEscaped          is MdChar           is export { }
     class MdChrSpecial          is MdChar           is export { }
     class MdCodeBlock           is MdPlainData      is export { }
+    class MdHrule               is MdPlainData      is export { }
     class MdHtmlElem            is MdPlainData      is export { }
     class MdEol                 is MdPlainStr       is export { }
     class MdParagraph           is MdContainer      is export { }
@@ -701,6 +703,10 @@ module ManulC::Parser::MD {
         method name {
             my $name = callsame;
             $name ~ " #$!level";
+        }
+
+        method classes {
+            callsame.push: "Head";
         }
     }
 
