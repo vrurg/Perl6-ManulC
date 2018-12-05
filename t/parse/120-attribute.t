@@ -46,7 +46,7 @@ subtest "Embedding" => {
                         # ATX heading {#anchor .class}
                         HEAD
             name => 'ATX header',
-            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdHead.new(level => 1, attributes => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")), type => "Attributes"), content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "ATX heading ", type => "PlainStr")], type => "Line")], type => "Head")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdHead.new(level => 1, attributes => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "anchor", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "class", type => "AttributeClass")), type => "Attributes"), content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "ATX heading", type => "PlainStr")], type => "Line")], type => "Head")], type => "Doc"),
         },
         {
             text => q:to/HEAD/,
@@ -61,7 +61,7 @@ subtest "Embedding" => {
                         ---
                         HEAD
             name => 'Setext header, hash terminated',
-            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdHead.new(level => 2, attributes => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "setext", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "setext-class", type => "AttributeClass")), type => "Attributes"), content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Setext heading ", type => "PlainStr")], type => "Line")], type => "Head")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdHead.new(level => 2, attributes => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "setext", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "setext-class", type => "AttributeClass")), type => "Attributes"), content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Setext heading", type => "PlainStr")], type => "Line")], type => "Head")], type => "Doc"),
         },
         {
             text => q:to/HEAD/,

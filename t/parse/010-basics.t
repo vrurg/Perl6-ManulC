@@ -207,54 +207,81 @@ and without},
     md-test-structure( @tests );
 }
 
-#`[ Temorarily disable a long-running test
-subtest "Horizontal rules", {
-    plan 5186;
-    my ( $text, $res );
-    my $para1 = qq{A paragraph\n\n};
-    my $para2 = qq{\n\nFinal paragraph};
+subtest "Horizontal rule" => {
+    my @tests =
+        {
+            text => q:to/MD/,
+                    Paragraph 1
 
-    Markdown::prepare-globals;
+                    ----
 
-    for qw{ * - _ } -> $sym {
-        for 3..6 -> $length {
-            for 0..2 -> $spaces {
-                for 0,1,2,4 -> $pre-space {
-                    for 0,1,2,4 -> $post-space {
-                        my $hrule =
-                            ( " " x $pre-space )
-                            ~ ( ( $sym xx $length ).join( " " x $spaces ) )
-                            ~ ( " " x $post-space )
-                            ;
-                        $res = MDParse( $hrule, rule => "md-hrule" );
-                        ok so $res, "parsed horizontal rule: \"{$hrule}\"";
-                        for 0..1 -> $para1-cnt {
-                            for 0..1 -> $para2-cnt {
-                                $text = ($para1 x $para1-cnt) ~
-                                        $hrule
-                                        ~ ( $para2 x $para2-cnt )
-                                        ;
-                                $res = MDParse( $text );
-                                ok so $res, "parse hrule \"{$hrule}\" with {$para1-cnt} pre-paragraph and {$para2-cnt} post-paragraph";
-                                ok so $res<md-doc><md-hrule>, "<md-hrule> is present";
-                                diag $res.gist unless so $res<md-doc><md-hrule>;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+                    Paragraph 2
+                    MD
+            name => 'basic hrule',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph 1", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace")], type => "Paragraph"), ManulC::Parser::MD::MdHrule.new(value => "----\n", type => "Hrule"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph 2", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q:to/MD/,
+                    Paragraph 1
 
-    $text = qq{* _ - _ *};
-    $res = MDParse( $text, rule => "md-hrule" );
-    nok so $res, "no mixed syms allowed";
+                    ***********
 
-    $text = qq{- - - -  - -};
-    $res = MDParse( $text, rule => "md-hrule" );
-    nok so $res, "only same number of delimiting spaces allowed";
+                    Paragraph 2
+                    MD
+            name => 'basic hrule',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph 1", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace")], type => "Paragraph"), ManulC::Parser::MD::MdHrule.new(value => "***********\n", type => "Hrule"), ManulC::Parser::MD::MdBlankSpace.new(value => "\n", type => "BlankSpace"), ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph 2", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        ;
+
+    md-test-structure( @tests );
 }
-]
+
+# subtest "Horizontal rules: variations", {
+#     plan 5186;
+#     my ( $text, $res );
+#     my $para1 = qq{A paragraph\n\n};
+#     my $para2 = qq{\n\nFinal paragraph};
+#
+#     Markdown::prepare-globals;
+#
+#     for qw{ * - _ } -> $sym {
+#         for 3..6 -> $length {
+#             for 0..2 -> $spaces {
+#                 for 0,1,2,4 -> $pre-space {
+#                     for 0,1,2,4 -> $post-space {
+#                         my $hrule =
+#                             ( " " x $pre-space )
+#                             ~ ( ( $sym xx $length ).join( " " x $spaces ) )
+#                             ~ ( " " x $post-space )
+#                             ;
+#                         $res = MDParse( $hrule, rule => "md-hrule" );
+#                         ok so $res, "parsed horizontal rule: \"{$hrule}\"";
+#                         for 0..1 -> $para1-cnt {
+#                             for 0..1 -> $para2-cnt {
+#                                 $text = ($para1 x $para1-cnt) ~
+#                                         $hrule
+#                                         ~ ( $para2 x $para2-cnt )
+#                                         ;
+#                                 $res = MDParse( $text );
+#                                 ok so $res, "parse hrule \"{$hrule}\" with {$para1-cnt} pre-paragraph and {$para2-cnt} post-paragraph";
+#                                 ok so $res<md-doc><md-hrule>, "<md-hrule> is present";
+#                                 diag $res.gist unless so $res<md-doc><md-hrule>;
+#                             }
+#                         }
+#                     }
+#                 }
+#             }
+#         }
+#     }
+#
+#     $text = qq{* _ - _ *};
+#     $res = MDParse( $text, rule => "md-hrule" );
+#     nok so $res, "no mixed syms allowed";
+#
+#     $text = qq{- - - -  - -};
+#     $res = MDParse( $text, rule => "md-hrule" );
+#     nok so $res, "only same number of delimiting spaces allowed";
+# }
 
 done-testing;
 # vim: ft=perl6
