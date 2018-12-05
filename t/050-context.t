@@ -6,7 +6,7 @@ use ManulC::Context;
 plan 2;
 
 subtest "Basics" => {
-    plan 12;
+    plan 9;
 
     my $ctx = Context.new;
 
@@ -31,11 +31,12 @@ subtest "Basics" => {
     $ctx.reset( 'ctx4' );
     nok $ctx.active( 'ctx4' ), "ctx4 reset";
 
-    $ctx += "operator";
-    ok $ctx.active("operator"), "operator +";
-    ok ( $ctx.has( "operator" ) ), "operator has";
-    $ctx -= "operator";
-    nok $ctx.active("operator"), "operator -";
+    # XXX See related comment in Context.pm6
+    # $ctx += "operator";
+    # ok $ctx.active("operator"), "operator +";
+    # ok ( $ctx.has( "operator" ) ), "operator has";
+    # $ctx -= "operator";
+    # nok $ctx.active("operator"), "operator -";
 }
 
 subtest "Errors" => {

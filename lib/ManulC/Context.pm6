@@ -1,3 +1,4 @@
+use v6;
 unit class Context;
 use WhereList;
 
@@ -59,10 +60,13 @@ multi method wrap ( Pair $ctx-block where { .value ~~ Callable } ) {
     samewith( [ $ctx-block.key ], $ctx-block.value )
 }
 
-multi infix:<+=> ( Context:D $ctx, Str:D $name ) is export {
-    $ctx.enter( $name );
-}
-
-multi infix:<-=> ( Context:D $ctx, Str:D $name ) is export {
-    $ctx.exit( $name )
-}
+# XXX These two operators are to remain commented out until Rakudo bug #2519
+# (https://github.com/rakudo/rakudo/issues/2519) is closed
+#
+# multi infix:<+=> ( Context:D $ctx, Str:D $name ) is export {
+#     $ctx.enter( $name );
+# }
+#
+# multi infix:<-=> ( Context:D $ctx, Str:D $name ) is export {
+#     $ctx.exit( $name )
+# }
