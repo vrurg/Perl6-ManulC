@@ -797,9 +797,10 @@ module ManulC::Parser::MD {
         }
 
         method makeHead ( $m, Int $level ) {
-            my $node = self.makeNode( "Head", :$level );
+            my %h-params;
+            %h-params<attributes> = .ast with $m<md-attributes>;
+            my $node = self.makeNode( "Head", :$level, |%h-params );
             $node.push( $m<md-line>.made );
-            $node.push: .ast with $m<md-attributes>;
             $m.make( $node );
         }
 
