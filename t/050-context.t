@@ -31,10 +31,10 @@ subtest "Basics" => {
     $ctx.reset( 'ctx4' );
     nok $ctx.active( 'ctx4' ), "ctx4 reset";
 
-    $ctx + "operator";
+    $ctx += "operator";
     ok $ctx.active("operator"), "operator +";
     ok ($ctx has "operator"), "operator has";
-    $ctx - "operator";
+    $ctx -= "operator";
     nok $ctx.active("operator"), "operator -";
 }
 

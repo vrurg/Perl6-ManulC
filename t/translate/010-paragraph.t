@@ -1,12 +1,13 @@
 use v6;
-use lib q<./build-tools/lib>;
-use MCTest;
 use Test;
 use ManulC::Parser::MD;
 use ManulC::Translator::MD2HTML;
 
+plan 1;
+
 subtest "Basic" => {
-    my @tests = {
+    my @tests =
+        {
             text => q:to/MD/,
                     First paragraph
 
@@ -133,9 +134,14 @@ subtest "Basic" => {
         },
     ;
 
+    plan @tests.elems;
+
     for @tests -> $test {
         my $html = md2html( $test<text> );
-        #diag $html;
+        # diag $html;
         is $html, $test<html>, $test<name>;
     }
 }
+
+done-testing;
+# vim: ft=perl6

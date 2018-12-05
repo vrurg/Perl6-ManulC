@@ -9,8 +9,12 @@ module ManulC::Translator {
 
     class MD2HTML does MDTranslator is export {
         has Str $.class-prefix = "mc";
-        has Context $.ctx .= new;
+        has Context $.ctx;
         has %.link-definitions;
+
+        submethod TWEAK {
+            $!ctx = Context.new;
+        }
 
         proto method mc-class (|) {*}
         multi method mc-class ( @classes ) {
@@ -50,7 +54,6 @@ module ManulC::Translator {
             :@attrs is copy
             --> Str
         ) {
-            my $att-str = "";
 
             with $md-attrs {
                 for .attrs -> $attr {
@@ -71,6 +74,7 @@ module ManulC::Translator {
                 }
             }
 
+            my $att-str = "";
             my @a-str;
 
             @a-str.push: 'class="' ~ @classes.map( { ~$_ } ).join(" ") ~ '"' if @classes;
@@ -99,8 +103,9 @@ module ManulC::Translator {
 
         proto method img (|) {*}
         multi method img( MdLinkAdhoc $elem ) {
-            my $str = $!ctx.wrap(
-                "image-adhoc" => sub {
+            $!ctx.wrap(
+                "image-adhoc",
+                sub {
                     my @attrs;
 
                     @attrs.append: ( src => self.translate( $elem.addr ) );
@@ -111,13 +116,13 @@ module ManulC::Translator {
 
                     self.img-tag( $elem, :@attrs, :class<ImageAdhoc>, :md-attrs( $elem.attrs ) );
                 }
-            );
-            $str;
+            )
         }
 
         multi method img ( MdLinkReference $elem ) {
             $!ctx.wrap(
-                'image-reference' => sub {
+                'image-reference',
+                 sub {
                     my @attrs;
                     my $def = %!link-definitions{ $elem.addr.value.fc };
                     fail "No image definition found for ID '" ~ $elem.addr.value ~ "'" unless $def;
@@ -146,7 +151,7 @@ module ManulC::Translator {
 
         multi method translate ( MdDoc:D $elem ) {
             %!link-definitions = $elem.link-definitions;
-            callsame
+            nextsame
         }
 
         multi method translate(MdChrSpecial:D $elem) {
@@ -160,8 +165,14 @@ module ManulC::Translator {
 
         multi method translate ( MdParagraph:D $elem ) {
             my &callee = nextcallee;
-            $!ctx.wrap( "paragraph", -> {
-                    self.tag( 'p', self.&callee( $elem ), classes => self.mc-class( $elem, "Paragraph" ) );
+            $!ctx.wrap(
+                "paragraph",
+                sub {
+                    self.tag(
+                        'p',
+                        self.&callee( $elem ),
+                        classes => self.mc-class( $elem, "Paragraph" )
+                    )
                 }
             )
         }
@@ -208,7 +219,9 @@ module ManulC::Translator {
 
         multi method translate ( MdVerbatim:D $elem ) {
             my &callee = nextcallee;
-            $!ctx.wrap( "verbatim" => -> {
+            $!ctx.wrap(
+                "verbatim",
+                sub {
                     self.tag(
                         "code",
                         self.&callee( $elem ),
@@ -216,12 +229,13 @@ module ManulC::Translator {
                         classes => self.mc-class( $elem, "Verbatim" ),
                     )
                 }
-            );
+            )
         }
 
         multi method translate ( MdLink:D $elem, :@attrs, |args ) {
             $!ctx.wrap(
-                "link" => -> {
+                "link",
+                sub {
                     self.tag(
                             "a",
                             self.translate( $elem.text ),
@@ -237,7 +251,7 @@ module ManulC::Translator {
             my &callee = nextcallee;
             $!ctx.wrap(
                 'link-adhoc',
-                -> {
+                sub {
                     my @attrs;
 
                     @attrs.append: ( href => self.translate( $elem.addr ) );
@@ -248,7 +262,7 @@ module ManulC::Translator {
 
                     self.&callee( $elem, :@attrs, :md-attrs( $elem.attrs ) );
                 }
-            );
+            )
         }
 
         multi method translate ( MdLinkTitle:D $elem ) {
@@ -262,8 +276,9 @@ module ManulC::Translator {
 
         multi method translate ( MdLinkReference:D $elem ) {
             my &callee = nextcallee;
-            my $rc = $!ctx.wrap(
-                'link-reference', sub { # Use sub because fail within a block behaves not as I'd want it... ;)
+            $!ctx.wrap(
+                'link-reference',
+                 sub { # Use sub because fail within a block behaves not as I'd want it... ;)
                     my @attrs;
                     my $def = %!link-definitions{ $elem.addr.value.fc };
                     fail "No link definition found for ID '" ~ $elem.addr.value ~ "'" unless $def;
@@ -275,8 +290,7 @@ module ManulC::Translator {
 
                     self.&callee( $elem, :@attrs, :md-attrs( $def.attrs ) );
                 }
-            );
-            $rc
+            )
         }
 
         multi method translate ( MdImage $elem ) {
@@ -336,7 +350,7 @@ module ManulC::Translator {
         }
     }
 
-    sub md2html ( Str $text ) is export {
+    sub md2html ( Str $text --> Str ) is export {
         my $struct = MDParse( $text ).ast;
         MD2HTML.new.translate( $struct )
     }

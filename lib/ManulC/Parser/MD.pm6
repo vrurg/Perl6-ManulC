@@ -561,7 +561,7 @@ module ManulC::Parser::MD {
     }
 
     class MdContainer is MdEntity is export {
-        has @.content is rw;
+        has @.content;
 
         method push( MdEntity $entity ) {
             @.content.push( $entity );
@@ -1111,7 +1111,7 @@ module ManulC::Parser::MD {
         }
 
         multi method translate(MdContainer $elem) {
-            return [~] $elem.content.map: { self!map-translate-element($_) }
+            [~] $elem.content.map( { self!map-translate-element($_) } )
         }
 
         method on-failure { ... }
