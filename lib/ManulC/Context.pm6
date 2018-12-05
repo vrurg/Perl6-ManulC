@@ -1,11 +1,12 @@
 unit class Context;
+use WhereList;
 
 # Simple context object. Implements entering/exiting contexts.
 
 has BagHash $!active-now .= new;
 
 proto method enter (|) {*}
-multi method enter ( Str $name ) {
+multi method enter ( Str:D $name ) {
     $!active-now{ $name }++;
 }
 multi method enter ( @names ) {
@@ -13,18 +14,25 @@ multi method enter ( @names ) {
 }
 
 proto method exit (|) {*}
-multi method exit ( Str $name ) {
+multi method exit ( Str:D $name ) {
     $!active-now{ $name }--;
 }
-multi method exit ( @names ) {
+multi method exit ( @names where all-items Str:D ) {
+    $!active-now{ $_ }-- for @names;
+}
+multi method exit ( *@names where all-items Str:D ) {
     $!active-now{ $_ }-- for @names;
 }
 
-method reset ( Str $name ) {
+method reset ( Str:D $name ) {
     $!active-now{ $name }:delete;
 }
 
-method active ( Str $name ) {
+method active ( Str:D $name ) {
+    ? $!active-now{ $name };
+}
+
+method has ( Str:D $name ) {
     ? $!active-now{ $name };
 }
 
@@ -51,14 +59,10 @@ multi method wrap ( Pair $ctx-block where { .value ~~ Callable } ) {
     samewith( [ $ctx-block.key ], $ctx-block.value )
 }
 
-multi infix:<+=> ( Context $ctx, Str $name --> Any) is export {
+multi infix:<+=> ( Context:D $ctx, Str:D $name ) is export {
     $ctx.enter( $name );
 }
 
-multi infix:<-=> ( Context $ctx, Str $name ) is export {
-    $ctx.exit( $name );
-}
-
-multi infix:<has> ( Context $ctx, Str $name ) is export {
-    $ctx.active( $name )
+multi infix:<-=> ( Context:D $ctx, Str:D $name ) is export {
+    $ctx.exit( $name )
 }

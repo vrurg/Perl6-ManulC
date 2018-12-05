@@ -3,7 +3,7 @@ use Test;
 
 use ManulC::Context;
 
-plan 1;
+plan 2;
 
 subtest "Basics" => {
     plan 12;
@@ -33,9 +33,19 @@ subtest "Basics" => {
 
     $ctx += "operator";
     ok $ctx.active("operator"), "operator +";
-    ok ($ctx has "operator"), "operator has";
+    ok ( $ctx.has( "operator" ) ), "operator has";
     $ctx -= "operator";
     nok $ctx.active("operator"), "operator -";
+}
+
+subtest "Errors" => {
+    plan 1;
+
+    my $ctx = Context.new;
+
+    throws-like {
+        $ctx.exit( [1,Nil] )
+    }, X::Multi::NoMatch;
 }
 
 done-testing;

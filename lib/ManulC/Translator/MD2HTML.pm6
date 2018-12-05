@@ -332,12 +332,12 @@ module ManulC::Translator {
         }
 
         multi method translate ( MdBlankSpace:D $elem ) {
-            return "" if $!ctx has "paragraph";
+            return "" if $!ctx.active: "paragraph";
             "\n\n"
         }
 
         multi method translate ( MdEol:D $elem ) {
-            return "" if $!ctx has "paragraph";
+            return "" if $!ctx.active: "paragraph";
             "\n"
         }
 
