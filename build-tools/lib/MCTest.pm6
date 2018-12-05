@@ -1,6 +1,7 @@
 use v6;
 unit module MCTest;
 use ManulC::Parser::MD;
+use ManulC::Translator::MD2HTML;
 use Test;
 
 sub md-test-structure ( @tests, :$rule?, :$nok?, :$diag-match?, :$diag-ast?, :$init? ) is export {
@@ -53,5 +54,15 @@ sub md-test-structure ( @tests, :$rule?, :$nok?, :$diag-match?, :$diag-ast?, :$i
             subtest "Custom subtest of " ~ $test<name>, &st-block;
         }
         #note $res.ast.perl;
+    }
+}
+
+sub md-test-MD2HTML ( @tests ) is export {
+    plan @tests.elems;
+
+    for @tests -> $test {
+        my $html = md2html( $test<text> );
+        # diag $html;
+        is $html, $test<html>, $test<name>;
     }
 }

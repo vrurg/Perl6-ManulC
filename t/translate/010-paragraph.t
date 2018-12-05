@@ -1,4 +1,6 @@
 use v6;
+use lib q<./build-tools/lib>;
+use MCTest;
 use Test;
 use ManulC::Parser::MD;
 use ManulC::Translator::MD2HTML;
@@ -134,13 +136,7 @@ subtest "Basic" => {
         },
     ;
 
-    plan @tests.elems;
-
-    for @tests -> $test {
-        my $html = md2html( $test<text> );
-        # diag $html;
-        is $html, $test<html>, $test<name>;
-    }
+    md-test-MD2HTML( @tests );
 }
 
 done-testing;
