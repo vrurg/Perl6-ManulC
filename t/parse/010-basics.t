@@ -13,7 +13,7 @@ my Regex $*md-quotable;
 my $*md-line-end;
 my Bool %*md-line-elems;
 
-plan 6;
+plan 9;
 
 subtest "Basics", {
     my @tests = {
@@ -207,6 +207,55 @@ and without},
     md-test-structure( @tests );
 }
 
+subtest "Verbatim" => {
+    my @tests =
+        {
+            text => q:to/MD/,
+                    Paragraph `with verbatim` text
+                    MD
+            name => 'basic verbatim',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdVerbatim.new(marker => "`", space => Str, attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdPlainStr.new(value => "with verbatim", type => "PlainStr")], type => "Verbatim"), ManulC::Parser::MD::MdPlainStr.new(value => " text", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q:to/MD/,
+                    Paragraph ````with verbatim```` text
+                    MD
+            name => 'verbatim in multiple backticks',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdVerbatim.new(marker => "````", space => Str, attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdPlainStr.new(value => "with verbatim", type => "PlainStr")], type => "Verbatim"), ManulC::Parser::MD::MdPlainStr.new(value => " text", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q:to/MD/,
+                    Paragraph ` with verbatim ` text
+                    MD
+            name => 'verbatim with delimiting spaces',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdVerbatim.new(marker => "`", space => Str, attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdPlainStr.new(value => "with verbatim", type => "PlainStr")], type => "Verbatim"), ManulC::Parser::MD::MdPlainStr.new(value => " text", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q:to/MD/,
+                    Paragraph ```` with verbatim ```` text
+                    MD
+            name => 'verbatim with delimiting spaces and multiple backticks',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph ", type => "PlainStr"), ManulC::Parser::MD::MdVerbatim.new(marker => "````", space => Str, attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdPlainStr.new(value => "with verbatim", type => "PlainStr")], type => "Verbatim"), ManulC::Parser::MD::MdPlainStr.new(value => " text", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q:to/MD/,
+                    Verbatim with backtick: ` ` ` - and text
+                    MD
+            name => 'verbatim with backtick inside',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Verbatim with backtick: ", type => "PlainStr"), ManulC::Parser::MD::MdVerbatim.new(marker => "`", space => Str, attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial")], type => "Verbatim"), ManulC::Parser::MD::MdPlainStr.new(value => " - and text", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q:to/MD/,
+                    Verbatim with backticks: ``` ` `` ``` - and text
+                    MD
+            name => 'verbatim with backticks inside',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Verbatim with backticks: ", type => "PlainStr"), ManulC::Parser::MD::MdVerbatim.new(marker => "```", space => Str, attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial"), ManulC::Parser::MD::MdPlainStr.new(value => " ", type => "PlainStr"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial")], type => "Verbatim"), ManulC::Parser::MD::MdPlainStr.new(value => " - and text", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        ;
+
+    md-test-structure( @tests );
+}
+
 subtest "Horizontal rule" => {
     my @tests =
         {
@@ -236,52 +285,57 @@ subtest "Horizontal rule" => {
     md-test-structure( @tests );
 }
 
-# subtest "Horizontal rules: variations", {
-#     plan 5186;
-#     my ( $text, $res );
-#     my $para1 = qq{A paragraph\n\n};
-#     my $para2 = qq{\n\nFinal paragraph};
-#
-#     Markdown::prepare-globals;
-#
-#     for qw{ * - _ } -> $sym {
-#         for 3..6 -> $length {
-#             for 0..2 -> $spaces {
-#                 for 0,1,2,4 -> $pre-space {
-#                     for 0,1,2,4 -> $post-space {
-#                         my $hrule =
-#                             ( " " x $pre-space )
-#                             ~ ( ( $sym xx $length ).join( " " x $spaces ) )
-#                             ~ ( " " x $post-space )
-#                             ;
-#                         $res = MDParse( $hrule, rule => "md-hrule" );
-#                         ok so $res, "parsed horizontal rule: \"{$hrule}\"";
-#                         for 0..1 -> $para1-cnt {
-#                             for 0..1 -> $para2-cnt {
-#                                 $text = ($para1 x $para1-cnt) ~
-#                                         $hrule
-#                                         ~ ( $para2 x $para2-cnt )
-#                                         ;
-#                                 $res = MDParse( $text );
-#                                 ok so $res, "parse hrule \"{$hrule}\" with {$para1-cnt} pre-paragraph and {$para2-cnt} post-paragraph";
-#                                 ok so $res<md-doc><md-hrule>, "<md-hrule> is present";
-#                                 diag $res.gist unless so $res<md-doc><md-hrule>;
-#                             }
-#                         }
-#                     }
-#                 }
-#             }
-#         }
-#     }
-#
-#     $text = qq{* _ - _ *};
-#     $res = MDParse( $text, rule => "md-hrule" );
-#     nok so $res, "no mixed syms allowed";
-#
-#     $text = qq{- - - -  - -};
-#     $res = MDParse( $text, rule => "md-hrule" );
-#     nok so $res, "only same number of delimiting spaces allowed";
-# }
+subtest "Horizontal rules: variations", {
+    if True {
+        skip "NO RULES TESTING", 1;
+    }
+    else {
+        plan 5186;
+        my ( $text, $res );
+        my $para1 = qq{A paragraph\n\n};
+        my $para2 = qq{\n\nFinal paragraph};
+
+        for qw{ * - _ } -> $sym {
+            for 3..6 -> $length {
+                for 0..2 -> $spaces {
+                    for 0,1,2,4 -> $pre-space {
+                        for 0,1,2,4 -> $post-space {
+
+                            Markdown::prepare-globals;
+                            my $hrule =
+                                ( " " x $pre-space )
+                                ~ ( ( $sym xx $length ).join( " " x $spaces ) )
+                                ~ ( " " x $post-space )
+                                ;
+                            $res = MDParse( $hrule, rule => "md-hrule" );
+                            ok so $res, "parsed horizontal rule: \"{$hrule}\"";
+                            for 0..1 -> $para1-cnt {
+                                for 0..1 -> $para2-cnt {
+                                    $text = ($para1 x $para1-cnt) ~
+                                            $hrule
+                                            ~ ( $para2 x $para2-cnt )
+                                            ;
+                                    $res = MDParse( $text );
+                                    ok so $res, "parse hrule \"{$hrule}\" with {$para1-cnt} pre-paragraph and {$para2-cnt} post-paragraph";
+                                    ok so $res<md-doc><md-hrule>, "<md-hrule> is present";
+                                    diag $res.gist unless so $res<md-doc><md-hrule>;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $text = qq{* _ - _ *};
+        $res = MDParse( $text, rule => "md-hrule" );
+        nok so $res, "no mixed syms allowed";
+
+        $text = qq{- - - -  - -};
+        $res = MDParse( $text, rule => "md-hrule" );
+        nok so $res, "only same number of delimiting spaces allowed";
+    }
+}
 
 done-testing;
 # vim: ft=perl6

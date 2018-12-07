@@ -233,6 +233,35 @@ module ManulC::Translator {
             )
         }
 
+        multi method translate ( MdCodeblockStd:D $elem ) {
+            self.tag(
+                "pre",
+                self.tag(
+                    "code",
+                    $elem.value.chomp,
+                    classes => self.mc-class( $elem ),
+                ),
+                classes => self.mc-class( $elem ),
+            ) ~ "\n";
+        }
+
+        multi method translate ( MdCodeblockFenced:D $elem ) {
+            # TODO – .language support
+            my %params;
+            %params<md-attrs> = $_ with $elem.attrs;
+            %params<classes> = self.mc-class( $elem ).Array;
+            %params<classes>.push: $_ with $elem.language;
+            self.tag(
+                "pre",
+                self.tag(
+                    "code",
+                    $elem.value.chomp,
+                    classes => %params<classes>,
+                ),
+                |%params
+            )
+        }
+
         multi method translate ( MdLink:D $elem, :@attrs, |args ) {
             $!ctx.wrap(
                 "link",

@@ -130,26 +130,6 @@ paragraph
         },
         {
             text => q:to/CODE/,
-                    ``` garbage text
-                    the code goes
-                      here
-                    ```
-                    CODE
-            name => 'fenced code block with "comment"',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => "garbage text", value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
-        },
-        {
-            text => q:to/CODE/,
-                    ```text garbage text
-                    the code goes
-                      here
-                    ```
-                    CODE
-            name => 'fenced code block with language and "comment"',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => "text", comment => "garbage text", value => "the code goes\n  here\n", type => "CodeblockFenced")], type => "Doc"),
-        },
-        {
-            text => q:to/CODE/,
                       ```
                       the code goes
                         here
@@ -166,6 +146,36 @@ paragraph
             name => 'empty fenced code block',
             struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, value => "", type => "CodeblockFenced")], type => "Doc"),
         },
+        {
+            text => q:to/CODE/,
+                    Paragraph
+                    ```
+                    and code
+                    ```
+                    CODE
+            name => 'immediately following a paragraph',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph"), ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, comment => Str, attrs => ManulC::Parser::MD::MdAttributes, value => "and code\n", type => "CodeblockFenced")], type => "Doc"),
+        },
+        {
+            text => q:to/CODE/,
+                    Paragraph
+                    ``` language
+                    and code
+                    ```
+                    CODE
+            name => 'immediately following a paragraph, with language',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph"), ManulC::Parser::MD::MdCodeblockFenced.new(language => "language", comment => Str, attrs => ManulC::Parser::MD::MdAttributes, value => "and code\n", type => "CodeblockFenced")], type => "Doc"),
+        },
+        {
+            text => q:to/CODE/,
+                    Paragraph
+                    ``` {#test .myClass}
+                    and code
+                    ```
+                    CODE
+            name => 'with attributes',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph", type => "PlainStr")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph"), ManulC::Parser::MD::MdCodeblockFenced.new(language => Str, attrs => ManulC::Parser::MD::MdAttributes.new(attrs => Array[ManulC::Parser::MD::MdEntity].new(ManulC::Parser::MD::MdAttributeId.new(value => "test", type => "AttributeId"), ManulC::Parser::MD::MdAttributeClass.new(value => "myClass", type => "AttributeClass")), type => "Attributes"), value => "and code\n", type => "CodeblockFenced")], type => "Doc"),
+        },
         ;
 
     md-test-structure( @tests );
@@ -181,7 +191,17 @@ subtest "Invalid" => {
                     ```
                     CODE
             name => 'fence length mismatch',
-            struct => ManulC::Parser::MD::MdDoc.new(content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdVerbatim.new(marker => "``", space => Str, content => [ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial"), ManulC::Parser::MD::MdPlainStr.new(value => "\nthe code goes\n  here\n", type => "PlainStr")], type => "Verbatim"), ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdChrSpecial.new(value => "`", type => "ChrSpecial"), ManulC::Parser::MD::MdVerbatim.new(marker => "```", attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdPlainStr.new(value => "\nthe code goes\n  here\n", type => "PlainStr")], type => "Verbatim")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
+        },
+        {
+            text => q:to/CODE/,
+                    Paragraph
+                    ``` some garbage
+                    and code
+                    ```
+                    CODE
+            name => 'bad fence start turns it into inline verbatim',
+            struct => ManulC::Parser::MD::MdDoc.new(link-definitions => {}, content => [ManulC::Parser::MD::MdParagraph.new(content => [ManulC::Parser::MD::MdLine.new(content => [ManulC::Parser::MD::MdPlainStr.new(value => "Paragraph\n", type => "PlainStr"), ManulC::Parser::MD::MdVerbatim.new(marker => "```", attrs => ManulC::Parser::MD::MdAttributes, content => [ManulC::Parser::MD::MdPlainStr.new(value => "some garbage\nand code\n", type => "PlainStr")], type => "Verbatim")], type => "Line"), ManulC::Parser::MD::MdEol.new(value => "\n", type => "Eol")], type => "Paragraph")], type => "Doc"),
         },
         ;
 

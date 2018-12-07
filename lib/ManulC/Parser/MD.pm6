@@ -103,12 +103,16 @@ module ManulC::Parser::MD {
             '{' ~ '}' [ \s* <md-attribute>+ % \s+ \s* ]
         }
 
+        token md-attr-word {
+            <:L + :N + [-]>+
+        }
+
         proto token md-attribute {*}
         token md-attribute:sym<class> {
-            '.' $<md-attr-class>=[ <:L + :N + [-]>+ ]
+            '.' $<md-attr-class>=<md-attr-word>
         }
         token md-attribute:sym<id> {
-            '#' $<md-attr-id>=[ <:L + :N + [-]>+ ]
+            '#' $<md-attr-id>=<md-attr-word>
         }
         token md-attribute:sym<keyval> {
             :my $*html-nonval-chars = rx/ \} /;
@@ -290,10 +294,10 @@ module ManulC::Parser::MD {
         }
 
         token md-paragraph ( Regex :$line-end?, Regex :$before = rx{ <?after .> } ) {
-            :temp $*md-line-end = $line-end // rx/<.md-eol> [ <.md-blank-space> || <md-cb-fence-start> || $ ]/;
+            :temp $*md-line-end = $line-end // rx/<.md-eol> [ <.md-blank-space> || <.md-cb-fence-start> || $ ]/;
              <md-line>
              <md-eol>
-             [ <md-blank-space> || $ ]
+             [ <md-blank-space> || <?before <.md-cb-fence-start>> || $ ]
              <?before $($before)>
         }
 
@@ -334,9 +338,8 @@ module ManulC::Parser::MD {
             :my $*md-cb-prefix;
             :my ( $*md-cb-fence-length, $*md-cb-fence-char );
 
-            ^^ <md-cb-fence> { $*md-cb-prefix = ~($/<md-cb-fence><md-cb-fence-start><md-align>) }
-                [ $<md-cb-language>=\S+ ]?
-                [ <md-eol> || \s $<md-cb-comment>=\N*? <md-eol> ]
+            <md-cb-fence> { $*md-cb-prefix = ~($/<md-cb-fence><md-cb-fence-start><md-align>) }
+            <md-eol>
             <md-cb-line>*?
             ^^ $($*md-cb-prefix) $($*md-cb-fence-char) ** {$*md-cb-fence-length..Inf} <md-eol>
         }
@@ -354,8 +357,18 @@ module ManulC::Parser::MD {
         }
 
         # Fenced code block defined with ` or ~ and language name support
+        token md-cb-fence-line {
+            '`' ** 3..* || '~' ** 3..*
+        }
+
         token md-cb-fence-start {
-            <md-align> $<md-cb-fence-line>=[ '`' ** 3..* || '~' ** 3..* ]
+            ^^
+            <md-align>
+            <md-cb-fence-line>
+            # Language will be used as a class. Thus attribute's definition of a class is suitable here.
+            [ \h* $<md-cb-language>=<md-attr-word> ]?
+            [ \h* <md-attributes> ]?
+            \h* $$
         }
 
         token md-cb-fence {
@@ -368,10 +381,6 @@ module ManulC::Parser::MD {
             }
         }
 
-        token md-code-marker {
-            $<md-code-quote>='`' ** 1..2 $<md-code-space>=' '?
-        }
-
         # For code inlined into other elements (md-line primarily)
         token md-verbatim {
             :my $md-end-marker;
@@ -379,11 +388,11 @@ module ManulC::Parser::MD {
             :temp $*md-line-end;
             { only-line-elements( <chr-special> ) }
 
-            <md-code-marker> {
-                $md-end-marker = $/<md-code-marker><md-code-space> ~ $/<md-code-marker><md-code-quote>;
-                $*md-line-end = $md-end-marker;
+            $<md-code-marker>=[ '`'+ ] {
+                $md-end-marker = $/<md-code-marker>;
+                $*md-line-end = rx{ \h* $($md-end-marker) };
             }
-            <md-line>
+            \h* <md-line> \h*
             $($md-end-marker)
         }
 
@@ -589,7 +598,6 @@ module ManulC::Parser::MD {
     class MdBlockquote          is MdContainer      is export { }
     class MdChrEscaped          is MdChar           is export { }
     class MdChrSpecial          is MdChar           is export { }
-    class MdCodeBlock           is MdPlainData      is export { }
     class MdHrule               is MdPlainData      is export { }
     class MdHtmlElem            is MdPlainData      is export { }
     class MdEol                 is MdPlainStr       is export { }
@@ -678,11 +686,16 @@ module ManulC::Parser::MD {
 
     class MdVerbatim is MdContainer is export {
         has Str $.marker;
-        has Str $.space;
         has MdAttributes $.attrs;
 
         method info-str {
-            "code marker:«$.marker»" ~ ($.space ?? " with space" !! "")
+            "code marker:«$.marker»"
+        }
+    }
+
+    class MdCodeBlock is MdPlainData is export {
+        method classes {
+            callsame.push: "Code";
         }
     }
 
@@ -692,7 +705,6 @@ module ManulC::Parser::MD {
 
     class MdCodeblockFenced is MdCodeBlock is export {
         has Str $.language;
-        has Str $.comment;
         has MdAttributes $.attrs;
     }
 
@@ -768,6 +780,7 @@ module ManulC::Parser::MD {
 
         has $!containerClass;
         has $!plainDataClass;
+        has %!rule2class;
 
         # Takes a rule name in form md-word1-woRd2, returns MdWord1WoRd2
         method rule2type ( Str $ruleName is copy ) {
@@ -783,15 +796,14 @@ module ManulC::Parser::MD {
         }
 
         multi method makeNode( Str $rule, |objParams ) {
-            state %rule2class;
             my ($class, $type);
-            if %rule2class{$rule}:exists {
-                ($class, $type) = %rule2class{$rule}<class type>;
+            if %!rule2class{$rule}:exists {
+                ($class, $type) = %!rule2class{$rule}<class type>;
             } else {
                 $type = self.rule2type( $rule );
                 #say "Rule $rule => $type";
                 $class = self.type2class( $type );
-                %rule2class{$rule} = { :$class, :$type };
+                %!rule2class{$rule} = { :$class, :$type };
                 #say "No class for $type" unless $class;
             }
             fail "No class for node '$type'" unless $class;
@@ -843,7 +855,8 @@ module ManulC::Parser::MD {
         method md-codeblock:sym<fenced> ( $m ) {
             my %cb-params = value => [~] $m<md-cb-line>.map: { ~ $_<md-cb-line-body> };
 
-            %cb-params<language> = ~$_ with $m<md-cb-language>;
+            %cb-params<language> = ~$_ with $m<md-cb-fence><md-cb-fence-start><md-cb-language>;
+            %cb-params<attrs> = .ast with $m<md-cb-fence><md-cb-fence-start><md-attributes>;
             %cb-params<comment>  = ~$_ with $m<md-cb-comment>;
 
             $m.make(
@@ -858,8 +871,7 @@ module ManulC::Parser::MD {
                 self.makeNode(
                         'Verbatim',
                         content => $m<md-line>.ast.content,
-                        marker  => ~$m<md-code-marker><md-code-quote>,
-                        spacing => ~$m<md-code-marker><md-code-space>,
+                        marker  => ~$m<md-code-marker>,
                 )
             );
         }
