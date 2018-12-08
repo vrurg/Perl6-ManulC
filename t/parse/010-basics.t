@@ -286,40 +286,29 @@ subtest "Horizontal rule" => {
 }
 
 subtest "Horizontal rules: variations", {
-    if True {
-        skip "NO RULES TESTING", 1;
+    if False {
+        skip "NO HORIZONTAL RULES TESTING", 1;
     }
     else {
         plan 5186;
-        my ( $text, $res );
         my $para1 = qq{A paragraph\n\n};
         my $para2 = qq{\n\nFinal paragraph};
 
-        for qw{ * - _ } -> $sym {
-            for 3..6 -> $length {
-                for 0..2 -> $spaces {
-                    for 0,1,2,4 -> $pre-space {
-                        for 0,1,2,4 -> $post-space {
+        my $c = Channel.new;
 
-                            Markdown::prepare-globals;
-                            my $hrule =
-                                ( " " x $pre-space )
-                                ~ ( ( $sym xx $length ).join( " " x $spaces ) )
-                                ~ ( " " x $post-space )
-                                ;
-                            $res = MDParse( $hrule, rule => "md-hrule" );
-                            ok so $res, "parsed horizontal rule: \"{$hrule}\"";
-                            for 0..1 -> $para1-cnt {
-                                for 0..1 -> $para2-cnt {
-                                    $text = ($para1 x $para1-cnt) ~
-                                            $hrule
-                                            ~ ( $para2 x $para2-cnt )
-                                            ;
-                                    $res = MDParse( $text );
-                                    ok so $res, "parse hrule \"{$hrule}\" with {$para1-cnt} pre-paragraph and {$para2-cnt} post-paragraph";
-                                    ok so $res<md-doc><md-hrule>, "<md-hrule> is present";
-                                    diag $res.gist unless so $res<md-doc><md-hrule>;
-                                }
+        sub gen {
+            for qw{ * - _ } -> $sym {
+                for 3..6 -> $length {
+                    for 0..2 -> $spaces {
+                        for 0,1,2,4 -> $pre-space {
+                            for 0,1,2,4 -> $post-space {
+
+                                my $hrule =
+                                    ( " " x $pre-space )
+                                    ~ ( ( $sym xx $length ).join( " " x $spaces ) )
+                                    ~ ( " " x $post-space )
+                                    ;
+                                $c.send( $hrule )
                             }
                         }
                     }
@@ -327,6 +316,61 @@ subtest "Horizontal rules: variations", {
             }
         }
 
+        my $l = Lock.new;
+
+        sub test-hrule ( $hrule ) {
+
+            my Int $*md-indent-width;
+            my Str $*md-line-prefix;
+            my Regex $*md-quotable;
+            my $*md-line-end;
+            my Bool %*md-line-elems;
+            my ( $text, $res );
+
+            Markdown::prepare-globals;
+
+            $res = MDParse( $hrule, rule => "md-hrule" );
+            $l.protect({ # Some output could be lost without locking.
+                ok so $res, "\"{$hrule}\": parsed";
+            });
+            for 0..1 -> $para1-cnt {
+                for 0..1 -> $para2-cnt {
+                    Markdown::prepare-globals;
+                    $text = ($para1 x $para1-cnt) ~
+                            $hrule
+                            ~ ( $para2 x $para2-cnt )
+                            ;
+                    $res = MDParse( $text );
+                    $l.protect( { # Some output could be lost without locking.
+                        ok so $res, "\"{$hrule}\": parsed with {$para1-cnt} pre-paragraph and {$para2-cnt} post-paragraph";
+                        ok so $res<md-doc><md-hrule>, "\"{$hrule}\": <md-hrule> is present";
+                    die $res.gist unless so $res<md-doc><md-hrule>;
+                    } );
+                }
+            }
+        }
+
+        my @w;
+
+        @w.push: start {
+            gen;
+            $c.close;
+        };
+
+        my $workers = Int( $*KERNEL.cpu-cores / 2 ) || 1;
+        for 1..$workers {
+            @w.push: start {
+                react {
+                    whenever $c -> $hr {
+                        test-hrule( $hr );
+                    }
+                }
+            }
+        }
+
+        await @w;
+
+        my ( $text, $res );
         $text = qq{* _ - _ *};
         $res = MDParse( $text, rule => "md-hrule" );
         nok so $res, "no mixed syms allowed";
